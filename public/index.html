@@ -1,0 +1,1261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>StudyHub — study together, stay on track</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    /* neutral base + a single restrained accent */
+    --bg:        #f6f7f9;
+    --surface:   #ffffff;
+    --surface-2: #f9fafb;
+    --border:    #e4e7ec;
+    --border-2:  #d0d5dd;
+
+    --ink:       #101828;
+    --ink-2:     #475467;
+    --ink-3:     #667085;
+
+    --accent:    #3538cd;
+    --accent-2:  #eef0fb;
+    --accent-3:  #c7cbf3;
+
+    --pos:       #067647;  --pos-bg: #ecfdf3;
+    --warn:      #b54708;  --warn-bg:#fffaeb;
+    --neg:       #b42318;  --neg-bg: #fef3f2;
+    --info:      #175cd3;  --info-bg:#eff8ff;
+
+    --r-lg: 10px; --r-md: 8px; --r-sm: 6px;
+    --shadow:    0 1px 2px rgba(16,24,40,.05);
+    --shadow-md: 0 4px 8px -2px rgba(16,24,40,.08), 0 2px 4px -2px rgba(16,24,40,.04);
+    --shadow-lg: 0 12px 16px -4px rgba(16,24,40,.08), 0 4px 6px -2px rgba(16,24,40,.03);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', -apple-system, system-ui, 'Segoe UI', sans-serif;
+    background: var(--bg); color: var(--ink); min-height: 100vh;
+    font-size: 14px; line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  button, input, select, textarea { font-family: inherit; font-size: inherit; }
+
+  /* ---------- shell ---------- */
+  .shell { display: flex; min-height: 100vh; }
+  .side {
+    width: 236px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border);
+    padding: 20px 14px; position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column;
+  }
+  .brand { display: flex; align-items: center; gap: 9px; padding: 0 8px 20px; font-weight: 600; font-size: 15px; letter-spacing: -.01em; }
+  .mark { width: 28px; height: 28px; border-radius: var(--r-sm); background: var(--accent); color: #fff;
+          display: grid; place-items: center; font-weight: 700; font-size: 13px; letter-spacing: -.02em; }
+  .nav { display: flex; flex-direction: column; gap: 2px; }
+  .nav button {
+    display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+    background: none; border: 0; padding: 8px 10px; border-radius: var(--r-md);
+    color: var(--ink-2); font-weight: 500; font-size: 13.5px; cursor: pointer; transition: background .12s, color .12s;
+  }
+  .nav button:hover { background: var(--surface-2); color: var(--ink); }
+  .nav button.on { background: var(--accent-2); color: var(--accent); font-weight: 600; }
+  .nav button svg { width: 17px; height: 17px; flex-shrink: 0; }
+  .nav-label { padding: 14px 10px 6px; font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3); }
+  .side-foot { margin-top: auto; border-top: 1px solid var(--border); padding-top: 12px; }
+  .me { display: flex; align-items: center; gap: 9px; padding: 8px; border-radius: var(--r-md); cursor: pointer; }
+  .me:hover { background: var(--surface-2); }
+
+  .main { flex: 1; padding: 28px 32px 56px; max-width: 1220px; }
+  .page-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
+  h1 { font-size: 20px; font-weight: 600; letter-spacing: -.02em; }
+  h2 { font-size: 14px; font-weight: 600; letter-spacing: -.01em; }
+  h3 { font-size: 13.5px; font-weight: 600; }
+  .sub { color: var(--ink-3); font-size: 13px; }
+
+  /* ---------- primitives ---------- */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 18px 20px; box-shadow: var(--shadow); }
+  .card + .card { margin-top: 14px; }
+  .grid { display: grid; gap: 14px; }
+  .g-4 { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+  .g-3 { grid-template-columns: repeat(auto-fill, minmax(268px, 1fr)); }
+  .g-2 { grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .spread { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+
+  input, select, textarea {
+    background: var(--surface); border: 1px solid var(--border-2); border-radius: var(--r-md);
+    padding: 8px 11px; width: 100%; color: var(--ink); transition: border-color .12s, box-shadow .12s; outline: none; font-size: 13.5px;
+  }
+  input::placeholder, textarea::placeholder { color: var(--ink-3); }
+  input:focus, select:focus, textarea:focus { border-color: var(--accent-3); box-shadow: 0 0 0 3px var(--accent-2); }
+  textarea { resize: vertical; min-height: 96px; }
+  label { display: block; font-size: 12.5px; font-weight: 500; color: var(--ink-2); margin-bottom: 5px; }
+  .field { margin-bottom: 12px; }
+
+  .btn {
+    background: var(--accent); color: #fff; border: 1px solid var(--accent); border-radius: var(--r-md);
+    padding: 8px 14px; font-weight: 500; font-size: 13.5px; cursor: pointer; transition: filter .12s; white-space: nowrap;
+  }
+  .btn:hover { filter: brightness(1.08); }
+  .btn.soft { background: var(--accent-2); color: var(--accent); border-color: var(--accent-2); }
+  .btn.ghost { background: var(--surface); color: var(--ink-2); border-color: var(--border-2); }
+  .btn.ghost:hover { background: var(--surface-2); filter: none; }
+  .btn.sm { padding: 5px 10px; font-size: 12.5px; }
+  .btn.icon { padding: 5px 8px; color: var(--ink-3); }
+  .btn.danger { color: var(--neg); border-color: var(--border-2); background: var(--surface); }
+  .btn[disabled] { opacity: .55; cursor: not-allowed; }
+
+  .pill { display: inline-flex; align-items: center; gap: 5px; border-radius: 5px; padding: 2px 8px; font-size: 11.5px; font-weight: 500; border: 1px solid transparent; }
+  .p-lav  { background: var(--accent-2); color: var(--accent); border-color: var(--accent-3); }
+  .p-mint { background: var(--pos-bg);  color: var(--pos);  border-color: #abefc6; }
+  .p-peach{ background: var(--warn-bg); color: var(--warn); border-color: #fedf89; }
+  .p-sky  { background: var(--info-bg); color: var(--info); border-color: #b2ddff; }
+  .p-rose { background: var(--neg-bg);  color: var(--neg);  border-color: #fecdca; }
+
+  .bar { height: 6px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 3px; overflow: hidden; }
+  .bar > i { display: block; height: 100%; background: var(--accent); transition: width .3s; }
+
+  .avatar { border-radius: 50%; object-fit: cover; flex-shrink: 0; display: grid; place-items: center;
+            font-weight: 600; color: #fff; background: var(--accent); overflow: hidden; letter-spacing: -.01em; }
+  .empty { text-align: center; padding: 30px 18px; color: var(--ink-3); font-size: 13px; }
+  .empty svg { width: 104px; height: 78px; margin-bottom: 8px; }
+  .hidden { display: none !important; }
+  .err { color: var(--neg); font-size: 12.5px; margin-top: 7px; min-height: 1em; }
+  .ok  { color: var(--pos); font-size: 12.5px; margin-top: 7px; min-height: 1em; }
+
+  /* ---------- metric tiles ---------- */
+  .stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 14px 16px; box-shadow: var(--shadow); }
+  .stat .n { font-size: 22px; font-weight: 600; letter-spacing: -.025em; line-height: 1.25; color: var(--ink); }
+  .stat .l { font-size: 12.5px; color: var(--ink-3); margin-top: 2px; }
+  .s-lav .n { color: var(--accent); } .s-mint .n { color: var(--pos); }
+  .s-peach .n { color: var(--warn); } .s-sky .n { color: var(--info); }
+
+  /* ---------- tables ---------- */
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th { text-align: left; font-weight: 500; font-size: 11.5px; letter-spacing: .04em; text-transform: uppercase;
+       color: var(--ink-3); padding: 8px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  td { padding: 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr:hover { background: var(--surface-2); }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* ---------- course card ---------- */
+  .course { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg);
+            overflow: hidden; cursor: pointer; transition: box-shadow .14s, border-color .14s; box-shadow: var(--shadow); }
+  .course:hover { box-shadow: var(--shadow-md); border-color: var(--border-2); }
+  .cover { height: 4px; }
+  .course .body { padding: 15px 16px 16px; }
+  .code-tag { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 11.5px; font-weight: 600;
+              color: var(--ink-2); background: var(--surface-2); border: 1px solid var(--border);
+              border-radius: 4px; padding: 1px 6px; }
+
+  /* ---------- auth ---------- */
+  .auth-wrap { display: grid; grid-template-columns: 1fr 1fr; min-height: 100vh; }
+  .auth-art { background: var(--surface); border-right: 1px solid var(--border); display: grid; place-items: center; padding: 40px; }
+  .auth-art .inner { max-width: 400px; }
+  .auth-form { display: grid; place-items: center; padding: 40px; }
+  .auth-form .box { width: 100%; max-width: 348px; }
+  @media (max-width: 900px) {
+    .auth-wrap { grid-template-columns: 1fr; } .auth-art { display: none; }
+    .shell { flex-direction: column; }
+    .side { width: 100%; height: auto; position: static; flex-direction: row; align-items: center; gap: 6px; overflow-x: auto; padding: 10px; }
+    .brand { padding: 0 8px 0 4px; } .nav { flex-direction: row; } .nav button span { display: none; }
+    .nav-label, #globalSearch { display: none; }
+    .side-foot { margin-top: 0; margin-left: auto; border: 0; padding-top: 0; }
+    .main { padding: 18px 14px 44px; }
+  }
+
+  /* ---------- flashcards ---------- */
+  .flip { perspective: 1400px; height: 268px; cursor: pointer; }
+  .flip-in { position: relative; width: 100%; height: 100%; transition: transform .45s cubic-bezier(.4,.2,.2,1); transform-style: preserve-3d; }
+  .flip.on .flip-in { transform: rotateY(180deg); }
+  .face { position: absolute; inset: 0; backface-visibility: hidden; border-radius: var(--r-lg);
+          display: grid; place-items: center; padding: 32px; text-align: center; font-size: 16px;
+          border: 1px solid var(--border); box-shadow: var(--shadow); background: var(--surface); }
+  .face.back { background: var(--surface-2); transform: rotateY(180deg); }
+
+  /* ---------- timer ---------- */
+  .timer-ring { display: grid; place-items: center; position: relative; }
+  .timer-ring .t { position: absolute; font-size: 34px; font-weight: 600; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+  .spark { display: flex; align-items: flex-end; gap: 6px; height: 84px; }
+
+  .note { border: 1px solid var(--border); border-radius: var(--r-md); padding: 14px 16px; background: var(--surface); }
+  .note + .note { margin-top: 10px; }
+  .note pre { white-space: pre-wrap; font-family: inherit; margin: 7px 0; color: var(--ink-2); font-size: 13px; }
+  .tag { display: inline-block; background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px;
+         padding: 1px 7px; font-size: 11.5px; color: var(--ink-2); margin: 2px 4px 2px 0; }
+  .att { display: inline-flex; align-items: center; gap: 5px; background: var(--surface-2); border: 1px solid var(--border);
+         border-radius: 5px; padding: 4px 9px; font-size: 12.5px; text-decoration: none; color: var(--accent); font-weight: 500; margin: 4px 6px 0 0; }
+  .todo { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .todo:last-child { border-bottom: 0; }
+  .todo.done .t { text-decoration: line-through; color: var(--ink-3); }
+  .check { width: 18px; height: 18px; border-radius: 4px; border: 1px solid var(--border-2); background: var(--surface);
+           cursor: pointer; display: grid; place-items: center; flex-shrink: 0; }
+  .check.on { background: var(--pos); border-color: var(--pos); }
+  .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: 16px; flex-wrap: wrap; }
+  .tabs button { border: 0; background: none; padding: 9px 14px; font-weight: 500; font-size: 13.5px;
+                 color: var(--ink-3); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .tabs button:hover { color: var(--ink); }
+  .tabs button.on { color: var(--accent); border-bottom-color: var(--accent); }
+  .modal-bg { position: fixed; inset: 0; background: rgba(16,24,40,.45); display: grid; place-items: center; padding: 20px; z-index: 50; }
+  .modal { background: var(--surface); border-radius: var(--r-lg); padding: 22px; width: 100%; max-width: 500px;
+           max-height: 88vh; overflow: auto; box-shadow: var(--shadow-lg); }
+</style>
+</head>
+<body>
+
+<!-- ========================= AUTH ========================= -->
+<div id="authView" class="auth-wrap">
+  <div class="auth-art">
+    <div class="inner">
+      <svg viewBox="0 0 420 280" fill="none" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:400px">
+        <rect x="30" y="26" width="360" height="228" rx="8" fill="#ffffff" stroke="#e4e7ec"/>
+        <rect x="30" y="26" width="360" height="34" rx="8" fill="#f9fafb"/>
+        <path d="M30 60h360" stroke="#e4e7ec"/>
+        <circle cx="48" cy="43" r="3.5" fill="#d0d5dd"/><circle cx="60" cy="43" r="3.5" fill="#d0d5dd"/><circle cx="72" cy="43" r="3.5" fill="#d0d5dd"/>
+        <rect x="30" y="60" width="92" height="194" fill="#fcfcfd"/><path d="M122 60v194" stroke="#e4e7ec"/>
+        <rect x="42" y="76" width="66" height="7" rx="3.5" fill="#eef0fb"/>
+        <rect x="42" y="94" width="52" height="7" rx="3.5" fill="#f2f4f7"/>
+        <rect x="42" y="112" width="58" height="7" rx="3.5" fill="#f2f4f7"/>
+        <rect x="42" y="130" width="46" height="7" rx="3.5" fill="#f2f4f7"/>
+        <rect x="138" y="76" width="112" height="9" rx="4.5" fill="#d0d5dd"/>
+        <rect x="138" y="100" width="74" height="52" rx="6" fill="#f9fafb" stroke="#e4e7ec"/>
+        <rect x="222" y="100" width="74" height="52" rx="6" fill="#f9fafb" stroke="#e4e7ec"/>
+        <rect x="306" y="100" width="70" height="52" rx="6" fill="#f9fafb" stroke="#e4e7ec"/>
+        <rect x="150" y="114" width="34" height="10" rx="3" fill="#3538cd"/>
+        <rect x="234" y="114" width="28" height="10" rx="3" fill="#067647"/>
+        <rect x="318" y="114" width="24" height="10" rx="3" fill="#b54708"/>
+        <rect x="150" y="132" width="48" height="6" rx="3" fill="#eaecf0"/>
+        <rect x="234" y="132" width="44" height="6" rx="3" fill="#eaecf0"/>
+        <rect x="318" y="132" width="40" height="6" rx="3" fill="#eaecf0"/>
+        <rect x="138" y="168" width="238" height="70" rx="6" fill="#fcfcfd" stroke="#e4e7ec"/>
+        <path d="M152 224l30-22 26 12 28-30 26 16 34-34" stroke="#3538cd" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="152" cy="224" r="3" fill="#3538cd"/><circle cx="322" cy="166" r="3" fill="#3538cd"/>
+      </svg>
+      <h2 style="margin-top:26px;font-size:17px">Everything for a semester, in one workspace</h2>
+      <p class="sub" style="margin-top:8px">Track topic-level progress, share notes with your cohort, drill flashcards,
+        log focus sessions and keep an eye on your weighted grade — without juggling five apps.</p>
+    </div>
+  </div>
+  <div class="auth-form">
+    <div class="box">
+      <div class="row" style="gap:9px;margin-bottom:26px">
+        <div class="mark">SH</div>
+        <div style="font-weight:600;font-size:15px">StudyHub</div>
+      </div>
+      <h1 id="authTitle">Sign in</h1>
+      <p class="sub" style="margin:6px 0 20px">Use your college email address.</p>
+      <div class="field hidden" id="nameField">
+        <label>Full name</label><input id="regName" placeholder="Vansh Vijayvargiya" />
+      </div>
+      <div class="field"><label>Email</label><input id="email" type="email" placeholder="you@college.edu" /></div>
+      <div class="field"><label>Password</label><input id="password" type="password" placeholder="••••••••" /></div>
+      <button class="btn" style="width:100%" id="authBtn" onclick="submitAuth()">Sign in</button>
+      <div class="err" id="authError"></div>
+      <p class="sub" style="text-align:center;margin-top:16px">
+        <span id="authSwitchText">Don't have an account?</span>
+        <a href="#" onclick="toggleAuthMode();return false" style="color:var(--accent);font-weight:700;text-decoration:none" id="authSwitchLink">Create an account</a>
+      </p>
+      <div style="margin-top:20px;padding:12px 14px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-md)">
+        <p class="sub" style="font-size:12.5px">Demo account: <b>vansh@studyhub.dev</b> / <b>password123</b></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========================= APP ========================= -->
+<div id="appView" class="shell hidden">
+  <aside class="side">
+    <div class="brand">
+      <div class="mark">SH</div>
+      <span>StudyHub</span>
+    </div>
+    <input id="globalSearch" placeholder="Search everything…" style="margin-bottom:14px;font-size:14px"
+           onkeydown="if(event.key==='Enter')go('search',{q:this.value})" />
+    <div class="nav-label">Workspace</div>
+    <nav class="nav" id="nav"></nav>
+    <div class="side-foot">
+      <div class="me" onclick="go('profile')">
+        <div class="avatar" id="navAvatar" style="width:36px;height:36px;font-size:14px"></div>
+        <div style="min-width:0">
+          <div style="font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="navName"></div>
+          <div class="sub" style="font-size:12px">View profile</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+  <main class="main" id="main"></main>
+</div>
+
+<div id="modalHost"></div>
+
+<script>
+// ===================== helpers =====================
+const API = '/api';
+let token = null, me = null, view = 'home', ctx = {};
+
+async function api(path, opts = {}) {
+  const res = await fetch(API + path, {
+    ...opts,
+    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}), ...(opts.headers || {}) },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || res.statusText);
+  return data;
+}
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+const $ = id => document.getElementById(id);
+const val = id => ($(id)?.value || '').trim();
+const PALETTE = ['#3538cd', '#067647', '#b54708', '#175cd3', '#6941c6', '#c11574'];
+const coverFor = id => PALETTE[Math.abs(id) % PALETTE.length];
+const initials = n => (n || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+const fmtMin = m => m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`;
+const fmtDate = d => new Date(d).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+
+function avatarHtml(user, size, cls = '') {
+  const s = `width:${size}px;height:${size}px;font-size:${Math.round(size * .38)}px`;
+  return user?.avatar
+    ? `<img class="avatar ${cls}" style="${s}" src="${esc(user.avatar)}" alt="">`
+    : `<div class="avatar ${cls}" style="${s}">${esc(initials(user?.name))}</div>`;
+}
+function emptyArt(text) {
+  return `<div class="empty">
+    <svg viewBox="0 0 200 150" fill="none">
+      <rect x="56" y="30" width="88" height="92" rx="6" fill="#fcfcfd" stroke="#e4e7ec"/>
+      <rect x="70" y="50" width="60" height="7" rx="3.5" fill="#eaecf0"/>
+      <rect x="70" y="66" width="44" height="7" rx="3.5" fill="#f2f4f7"/>
+      <rect x="70" y="82" width="52" height="7" rx="3.5" fill="#f2f4f7"/>
+      <rect x="70" y="98" width="34" height="7" rx="3.5" fill="#f2f4f7"/>
+      <circle cx="141" cy="38" r="13" fill="#eef0fb" stroke="#c7cbf3"/>
+      <path d="M136 38h10M141 33v10" stroke="#3538cd" stroke-width="2" stroke-linecap="round"/></svg>
+    <p>${esc(text)}</p></div>`;
+}
+function needCourseModal(what) {
+  modal(`<h2>Enroll in a course first</h2>
+    <p class="sub" style="margin:8px 0 18px">${esc(what)} belongs to a course, and you're not enrolled in any yet.
+      Head to Courses, enroll in one (or create your own), then come back.</p>
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn" onclick="closeModal();go('courses')">Go to Courses</button></div>`);
+}
+function modal(html) {
+  $('modalHost').innerHTML = `<div class="modal-bg" onclick="if(event.target===this)closeModal()"><div class="modal">${html}</div></div>`;
+}
+const closeModal = () => ($('modalHost').innerHTML = '');
+function readFile(file) {
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => resolve({ name: file.name, dataUrl: fr.result });
+    fr.onerror = reject;
+    fr.readAsDataURL(file);
+  });
+}
+
+// ===================== auth =====================
+let registering = false;
+function toggleAuthMode() {
+  registering = !registering;
+  $('nameField').classList.toggle('hidden', !registering);
+  $('authTitle').textContent = registering ? 'Create an account' : 'Sign in';
+  $('authBtn').textContent = registering ? 'Create account' : 'Sign in';
+  $('authSwitchText').textContent = registering ? 'Already have an account?' : "Don't have an account?";
+  $('authSwitchLink').textContent = registering ? 'Sign in' : 'Create one';
+  $('authError').textContent = '';
+}
+async function submitAuth() {
+  $('authError').textContent = '';
+  try {
+    const body = { email: val('email'), password: $('password').value };
+    if (registering) body.name = val('regName');
+    const data = await api(registering ? '/auth/register' : '/auth/login', { method: 'POST', body: JSON.stringify(body) });
+    token = data.token; me = data.user;
+    $('authView').classList.add('hidden');
+    $('appView').classList.remove('hidden');
+    await refreshMe();
+    go('home');
+  } catch (e) { $('authError').textContent = e.message; }
+}
+function logout() { token = null; me = null; $('appView').classList.add('hidden'); $('authView').classList.remove('hidden'); }
+$('password').addEventListener('keydown', e => { if (e.key === 'Enter') submitAuth(); });
+
+async function refreshMe() {
+  const p = await api('/profile');
+  me = { ...me, ...p };
+  $('navName').textContent = p.name;
+  $('navAvatar').outerHTML = avatarHtml(p, 36).replace('class="avatar', 'id="navAvatar" class="avatar');
+}
+
+// ===================== navigation =====================
+const ICONS = {
+  home: '<path d="M3 10l9-7 9 7v9a2 2 0 01-2 2h-4v-6H9v6H5a2 2 0 01-2-2z"/>',
+  courses: '<path d="M4 5a2 2 0 012-2h13v16H6a2 2 0 00-2 2z"/><path d="M19 3v18"/>',
+  cards: '<rect x="3" y="6" width="13" height="14" rx="2"/><path d="M8 3h11a2 2 0 012 2v11"/>',
+  timer: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6"/>',
+  todo: '<path d="M9 5h10M9 12h10M9 19h10"/><path d="M4 5l1.5 1.5L8 4M4 12l1.5 1.5L8 11M4 19l1.5 1.5L8 18"/>',
+  grades: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+  board: '<path d="M8 21h8M12 17v4"/><path d="M7 4h10v5a5 5 0 01-10 0z"/><path d="M17 5h3v2a3 3 0 01-3 3M7 5H4v2a3 3 0 003 3"/>',
+  profile: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0116 0"/>',
+};
+const NAV = [
+  ['home', 'Dashboard'], ['courses', 'Courses'], ['cards', 'Flashcards'],
+  ['timer', 'Study timer'], ['todo', 'Deadlines'], ['grades', 'Grades'],
+  ['board', 'Leaderboard'], ['profile', 'Profile'],
+];
+function renderNav() {
+  $('nav').innerHTML = NAV.map(([k, label]) => `
+    <button class="${view === k ? 'on' : ''}" onclick="go('${k}')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${ICONS[k]}</svg>
+      <span>${label}</span>
+    </button>`).join('');
+}
+async function go(v, params = {}) {
+  view = v; ctx = params; renderNav();
+  $('main').innerHTML = '<div class="card"><p class="sub">Loading…</p></div>';
+  try {
+    if (v === 'home') await renderHome();
+    else if (v === 'courses') await renderCourses();
+    else if (v === 'course') await renderCourse();
+    else if (v === 'cards') await renderDecks();
+    else if (v === 'study') await renderStudy();
+    else if (v === 'timer') await renderTimer();
+    else if (v === 'todo') await renderTodo();
+    else if (v === 'grades') await renderGrades();
+    else if (v === 'board') await renderBoard();
+    else if (v === 'search') await renderSearch();
+    else if (v === 'profile') await renderProfile();
+  } catch (e) {
+    $('main').innerHTML = `<div class="card"><h2>Something went wrong</h2><p class="err">${esc(e.message)}</p>
+      <button class="btn ghost sm" style="margin-top:12px" onclick="go('home')">Back to dashboard</button></div>`;
+  }
+  paintBanner();
+}
+
+// ===================== dashboard =====================
+async function renderHome() {
+  const [dash, stats, due] = await Promise.all([
+    api('/dashboard'), api('/sessions/stats'), api('/assignments?scope=upcoming'),
+  ]);
+  const hour = new Date().getHours();
+  const greet = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+  const goalMet = stats.todayMinutes >= stats.dailyGoal;
+  const doneTopics = dash.reduce((a, c) => a + c.completedTopics, 0);
+  const allTopics = dash.reduce((a, c) => a + c.totalTopics, 0);
+  const goalPct = Math.min(100, Math.round(stats.todayMinutes / stats.dailyGoal * 100));
+
+  $('main').innerHTML = `
+    <div class="page-head">
+      <div><h1>${greet}, ${esc((me.name || '').split(' ')[0])}</h1>
+        <p class="sub">${allTopics ? `${doneTopics} of ${allTopics} topics complete across ${dash.length} course${dash.length === 1 ? '' : 's'}.` : 'Enroll in a course to get started.'}</p></div>
+      <button class="btn" onclick="go('timer')">Start a focus session</button>
+    </div>
+
+    <div class="grid g-4" style="margin-bottom:18px">
+      <div class="stat s-lav"><div class="n">${stats.streak}</div><div class="l">day streak</div></div>
+      <div class="stat s-mint"><div class="n">${fmtMin(stats.todayMinutes)}</div><div class="l">studied today, goal ${fmtMin(stats.dailyGoal)}</div></div>
+      <div class="stat s-peach"><div class="n">${due.length}</div><div class="l">open deadlines</div></div>
+      <div class="stat s-sky"><div class="n">${dash.length}</div><div class="l">active courses</div></div>
+    </div>
+
+    <div class="grid g-2">
+      <div class="card">
+        <div class="spread" style="margin-bottom:14px"><h2>Today's goal</h2><span class="pill p-lav">${goalPct}%</span></div>
+        <div class="bar"><i style="width:${goalPct}%"></i></div>
+        <p class="sub" style="margin-top:9px">${goalMet
+          ? 'Daily goal reached.' : `${fmtMin(Math.max(0, stats.dailyGoal - stats.todayMinutes))} remaining to reach today's goal.`}</p>
+        <div class="spark" style="margin-top:20px">${last7Bars(stats.last7)}</div>
+      </div>
+      <div class="card">
+        <div class="spread" style="margin-bottom:14px"><h2>Coming up</h2><button class="btn ghost sm" onclick="go('todo')">All deadlines</button></div>
+        ${due.length ? due.slice(0, 5).map(a => `
+          <div class="todo">
+            <span class="pill ${a.days_left < 0 ? 'p-rose' : a.days_left <= 2 ? 'p-peach' : 'p-sky'}" style="min-width:74px;justify-content:center">
+              ${a.days_left < 0 ? 'Overdue' : a.days_left === 0 ? 'Today' : a.days_left === 1 ? 'Tomorrow' : a.days_left + ' days'}
+            </span>
+            <div style="flex:1;min-width:0"><div class="t" style="font-weight:600">${esc(a.title)}</div>
+              <div class="sub" style="font-size:13px">${esc(a.course_code)} · due ${fmtDate(a.due_date)}</div></div>
+          </div>`).join('') : emptyArt('Nothing due. Enjoy the calm.')}
+      </div>
+    </div>
+
+    <div class="spread" style="margin:24px 0 12px"><h2>Courses</h2><button class="btn ghost sm" onclick="go('courses')">Manage courses</button></div>
+    <div class="grid g-3">${dash.map(courseCard).join('') || ''}</div>
+    ${dash.length === 0 ? `<div class="card" style="text-align:center">
+      ${emptyArt('You are not enrolled in any courses yet.')}
+      <button class="btn" onclick="go('courses')">Browse courses</button></div>` : ''}`;
+}
+function last7Bars(last7) {
+  const map = Object.fromEntries(last7.map(d => [d.day, d.minutes]));
+  const days = [...Array(7)].map((_, i) => {
+    const d = new Date(); d.setDate(d.getDate() - (6 - i));
+    return { key: d.toISOString().slice(0, 10), label: d.toLocaleDateString(undefined, { weekday: 'narrow' }), today: i === 6 };
+  });
+  const max = Math.max(30, ...days.map(d => map[d.key] || 0));
+  return days.map(d => {
+    const m = map[d.key] || 0;
+    return `<div style="display:flex;flex-direction:column;align-items:center;gap:6px;flex:1">
+      <div style="width:100%;height:66px;display:flex;align-items:flex-end">
+        <div style="width:100%;height:${Math.max(3, m / max * 66)}px;background:${d.today ? 'var(--accent)' : 'var(--accent-3)'};border-radius:3px" title="${m} min"></div>
+      </div><span class="sub" style="font-size:11.5px">${d.label}</span></div>`;
+  }).join('');
+}
+function courseCard(c) {
+  return `<div class="course" onclick="go('course',{id:${c.id},code:'${esc(c.code)}',title:'${esc(c.title)}'})">
+    <div class="cover" style="background:${coverFor(c.id)}"></div>
+    <div class="body">
+      <div class="spread" style="margin-bottom:9px">
+        <span class="code-tag">${esc(c.code)}</span>
+        <span style="font-weight:600;font-variant-numeric:tabular-nums">${c.progressPct}%</span>
+      </div>
+      <h3 style="margin-bottom:12px">${esc(c.title)}</h3>
+      <div class="bar"><i style="width:${c.progressPct}%"></i></div>
+      <div class="spread" style="margin-top:11px">
+        <span class="sub" style="font-size:12.5px">${c.completedTopics} of ${c.totalTopics} topics</span>
+        <span class="row" style="gap:4px">
+          ${c.sharedNotes ? `<span class="pill p-mint">${c.sharedNotes} notes</span>` : ''}
+          ${c.decks ? `<span class="pill p-sky">${c.decks} decks</span>` : ''}
+          ${c.openAssignments ? `<span class="pill p-peach">${c.openAssignments} due</span>` : ''}
+        </span>
+      </div>
+    </div></div>`;
+}
+
+// ===================== courses =====================
+async function renderCourses() {
+  const [dash, all] = await Promise.all([api('/dashboard'), api('/courses')]);
+  const others = all.filter(c => !c.enrolled);
+  $('main').innerHTML = `
+    <div class="page-head"><div><h1>Courses</h1><p class="sub">Your enrolled courses and everything else on campus.</p></div>
+      <button class="btn" onclick="newCourseModal()">+ New course</button></div>
+    <div class="grid g-3">${dash.map(courseCard).join('') || emptyArt('You are not enrolled in anything yet.')}</div>
+    <h2 style="margin:28px 0 14px">Browse other courses</h2>
+    <div class="grid g-3">${others.map(c => `
+      <div class="course">
+        <div class="cover" style="background:${coverFor(c.id)}"></div>
+        <div class="body"><span class="code-tag">${esc(c.code)}</span>
+          <h3 style="margin:9px 0 4px">${esc(c.title)}</h3>
+          <p class="sub" style="font-size:12.5px;margin-bottom:12px">${esc(c.semester)} · created by ${esc(c.created_by)}</p>
+          <button class="btn ghost sm" onclick="enroll(${c.id})">Enroll</button></div>
+      </div>`).join('') || emptyArt('You are enrolled in every course available.')}</div>`;
+}
+function newCourseModal() {
+  modal(`<h2>New course</h2><p class="sub" style="margin:4px 0 18px">You'll be enrolled automatically.</p>
+    <div class="field"><label>Course code</label><input id="cCode" placeholder="CS304" /></div>
+    <div class="field"><label>Title</label><input id="cTitle" placeholder="Software Engineering" /></div>
+    <div class="field"><label>Semester</label><input id="cSem" placeholder="2026-Fall" /></div>
+    <div class="err" id="cErr"></div>
+    <div class="row" style="justify-content:flex-end;margin-top:8px">
+      <button class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn" onclick="createCourse()">Create</button></div>`);
+}
+async function createCourse() {
+  try {
+    await api('/courses', { method: 'POST', body: JSON.stringify({ code: val('cCode'), title: val('cTitle'), semester: val('cSem') }) });
+    closeModal(); go('courses');
+  } catch (e) { $('cErr').textContent = e.message; }
+}
+async function enroll(id) { await api(`/courses/${id}/enroll`, { method: 'POST' }); go('courses'); }
+
+// ===================== course detail =====================
+async function renderCourse() {
+  const id = ctx.id;
+  const [topics, notes, decks, asg] = await Promise.all([
+    api(`/progress/${id}`), api(`/notes?courseId=${id}`), api(`/decks?courseId=${id}`), api(`/assignments?courseId=${id}`),
+  ]);
+  const done = topics.filter(t => t.status === 'completed').length;
+  const pct = topics.length ? Math.round(done / topics.length * 100) : 0;
+
+  $('main').innerHTML = `
+    <button class="btn ghost sm" onclick="go('courses')">← Courses</button>
+    <div class="card" style="margin-top:12px;border-top:3px solid ${coverFor(id)}">
+      <div class="spread">
+        <div><span class="code-tag">${esc(ctx.code)}</span>
+          <h1 style="margin-top:9px">${esc(ctx.title)}</h1></div>
+        <div style="text-align:right"><div style="font-size:26px;font-weight:600;letter-spacing:-.025em">${pct}%</div>
+          <div class="sub">complete</div></div>
+      </div>
+      <div class="bar" style="margin-top:14px"><i style="width:${pct}%"></i></div>
+    </div>
+
+    <div class="tabs" style="margin-top:20px">
+      <button class="on" onclick="courseTab(this,'tProg')">Progress</button>
+      <button onclick="courseTab(this,'tNotes')">Notes (${notes.length})</button>
+      <button onclick="courseTab(this,'tDecks')">Flashcards (${decks.length})</button>
+      <button onclick="courseTab(this,'tAsg')">Deadlines (${asg.filter(a => a.status === 'pending').length})</button>
+    </div>
+
+    <div id="tProg" class="card">
+      <h2 style="margin-bottom:14px">Topics</h2>
+      ${topics.map(t => `<div class="todo">
+          <div style="flex:1"><div class="t" style="font-weight:600">${esc(t.topic)}</div></div>
+          <select style="width:auto" onchange="setStatus('${esc(t.topic).replace(/'/g, "\\'")}', this.value)">
+            ${['not_started', 'in_progress', 'completed'].map(s => `<option value="${s}" ${s === t.status ? 'selected' : ''}>${{ not_started: 'Not started', in_progress: 'In progress', completed: 'Completed' }[s]}</option>`).join('')}
+          </select>
+          <button class="btn ghost sm icon" onclick="delTopic(${t.id})">Remove</button>
+        </div>`).join('') || emptyArt('No topics tracked yet.')}
+      <div class="row" style="margin-top:16px"><input id="newTopic" placeholder="Add a topic, e.g. Normalization" style="flex:1" />
+        <button class="btn" onclick="addTopic()">Add</button></div>
+    </div>
+
+    <div id="tNotes" class="card hidden">
+      <div class="spread" style="margin-bottom:14px"><h2>Shared notes</h2>
+        <div class="row"><input id="noteSearch" placeholder="Search…" style="width:180px" onkeydown="if(event.key==='Enter')searchNotes()" />
+        <button class="btn soft sm" onclick="noteModal()">+ Share note</button></div></div>
+      <div id="notesList">${notes.map(noteHtml).join('') || emptyArt('No notes shared yet — be the first.')}</div>
+    </div>
+
+    <div id="tDecks" class="card hidden">
+      <div class="spread" style="margin-bottom:14px"><h2>Flashcard decks</h2><button class="btn soft sm" onclick="deckModal()">+ New deck</button></div>
+      <div class="grid g-3">${decks.map(deckCard).join('') || emptyArt('No decks yet — build one and start drilling.')}</div>
+    </div>
+
+    <div id="tAsg" class="card hidden">
+      <div class="spread" style="margin-bottom:14px"><h2>Deadlines</h2></div>
+      <div id="asgList">${asg.map(asgHtml).join('') || emptyArt('No deadlines for this course.')}</div>
+      <div class="row" style="margin-top:16px">
+        <input id="aTitle" placeholder="Assignment title" style="flex:1" />
+        <input id="aDue" type="date" style="width:auto" />
+        <button class="btn" onclick="addAssignment(${id})">Add</button>
+      </div>
+    </div>`;
+}
+function courseTab(btn, id) {
+  [...btn.parentElement.children].forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  ['tProg', 'tNotes', 'tDecks', 'tAsg'].forEach(t => $(t).classList.toggle('hidden', t !== id));
+}
+async function addTopic() {
+  const t = val('newTopic'); if (!t) return;
+  await api('/progress', { method: 'POST', body: JSON.stringify({ courseId: ctx.id, topic: t, status: 'not_started' }) });
+  go('course', ctx);
+}
+async function setStatus(topic, status) {
+  await api('/progress', { method: 'POST', body: JSON.stringify({ courseId: ctx.id, topic, status }) });
+  go('course', ctx);
+}
+async function delTopic(id) { await api(`/progress/${id}`, { method: 'DELETE' }); go('course', ctx); }
+
+// ---- notes ----
+function noteHtml(n) {
+  return `<div class="note">
+    <div class="spread"><h3>${esc(n.title)}</h3><span class="sub" style="font-size:12px">${fmtDate(n.createdAt)}</span></div>
+    <p class="sub" style="font-size:13px">by ${esc(n.authorName)}</p>
+    <pre>${esc(n.content)}</pre>
+    <div>${(n.tags || []).map(t => `<span class="tag">#${esc(t)}</span>`).join('')}</div>
+    <div>${(n.attachments || []).map(a => `<a class="att" href="${esc(a.url)}" target="_blank" rel="noopener">${esc(a.name)}</a>`).join('')}</div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn ghost sm" onclick="upvote('${n._id}')">Helpful · ${n.upvoteCount ?? 0}</button>
+      ${n.authorId === me.id ? `<button class="btn ghost sm" onclick="delNote('${n._id}')">Delete</button>` : ''}
+    </div></div>`;
+}
+function noteModal() {
+  modal(`<h2>Share a note</h2><p class="sub" style="margin:4px 0 18px">Markdown welcome. Attach up to 5 files (8 MB each).</p>
+    <div class="field"><label>Title</label><input id="nTitle" placeholder="Normalization cheat sheet" /></div>
+    <div class="field"><label>Content</label><textarea id="nContent" placeholder="1NF: atomic values…"></textarea></div>
+    <div class="field"><label>Tags (comma separated)</label><input id="nTags" placeholder="sql, exam-prep" /></div>
+    <div class="field"><label>Attachments</label><input id="nFiles" type="file" multiple accept="image/*,application/pdf,text/plain,.md" /></div>
+    <div class="err" id="nErr"></div>
+    <div class="row" style="justify-content:flex-end"><button class="btn ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn" id="nSave" onclick="createNote()">Share</button></div>`);
+}
+async function createNote() {
+  $('nErr').textContent = '';
+  if (!val('nTitle') || !val('nContent')) { $('nErr').textContent = 'Title and content are both required.'; return; }
+  $('nSave').disabled = true;
+  try {
+    const files = [...($('nFiles').files || [])].slice(0, 5);
+    const attachments = await Promise.all(files.map(readFile));
+    await api('/notes', { method: 'POST', body: JSON.stringify({
+      courseId: ctx.id, title: val('nTitle'), content: val('nContent'),
+      tags: val('nTags').split(',').map(t => t.trim()).filter(Boolean), attachments,
+    })});
+    closeModal(); go('course', ctx);
+  } catch (e) { $('nErr').textContent = e.message; $('nSave').disabled = false; }
+}
+async function searchNotes() {
+  const q = val('noteSearch');
+  const notes = await api(`/notes?courseId=${ctx.id}${q ? '&search=' + encodeURIComponent(q) : ''}`);
+  $('notesList').innerHTML = notes.map(noteHtml).join('') || emptyArt('No notes matched that search.');
+}
+async function upvote(id) { await api(`/notes/${id}/upvote`, { method: 'POST' }); searchNotes(); }
+async function delNote(id) { await api(`/notes/${id}`, { method: 'DELETE' }); go('course', ctx); }
+
+// ---- assignments ----
+function asgHtml(a) {
+  return `<div class="todo ${a.status === 'done' ? 'done' : ''}">
+    <div class="check ${a.status === 'done' ? 'on' : ''}" onclick="toggleAsg(${a.id}, '${a.status}')">
+      ${a.status === 'done' ? '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>' : ''}
+    </div>
+    <div style="flex:1;min-width:0"><div class="t" style="font-weight:600">${esc(a.title)}</div>
+      <div class="sub" style="font-size:13px">${esc(a.course_code)} · due ${fmtDate(a.due_date)}</div></div>
+    ${a.status === 'pending' ? `<span class="pill ${a.days_left < 0 ? 'p-rose' : a.days_left <= 2 ? 'p-peach' : 'p-sky'}">
+      ${a.days_left < 0 ? Math.abs(a.days_left) + 'd late' : a.days_left === 0 ? 'today' : a.days_left + 'd left'}</span>` : ''}
+    <button class="btn ghost sm icon" onclick="delAsg(${a.id})">Remove</button></div>`;
+}
+async function addAssignment(courseId) {
+  if (!courseId) return needCourseModal('A deadline');
+  if (!val('aTitle') || !val('aDue')) { alert('Enter a title and a due date.'); return; }
+  await api('/assignments', { method: 'POST', body: JSON.stringify({ courseId, title: val('aTitle'), dueDate: val('aDue') }) });
+  go(view === 'todo' ? 'todo' : 'course', ctx);
+}
+async function toggleAsg(id, cur) {
+  await api(`/assignments/${id}`, { method: 'PATCH', body: JSON.stringify({ status: cur === 'done' ? 'pending' : 'done' }) });
+  go(view, ctx);
+}
+async function delAsg(id) { await api(`/assignments/${id}`, { method: 'DELETE' }); go(view, ctx); }
+
+// ===================== deadlines page =====================
+async function renderTodo() {
+  const [asg, dash] = await Promise.all([api('/assignments'), api('/dashboard')]);
+  const pending = asg.filter(a => a.status === 'pending');
+  const done = asg.filter(a => a.status === 'done');
+  $('main').innerHTML = `
+    <div class="page-head"><div><h1>Deadlines</h1><p class="sub">${pending.length} open · ${done.length} completed</p></div></div>
+    <div class="card">
+      <h2 style="margin-bottom:8px">Add a deadline</h2>
+      ${dash.length ? `<div class="row">
+        <select id="aCourse" style="width:auto">${dash.map(c => `<option value="${c.id}">${esc(c.code)}</option>`).join('')}</select>
+        <input id="aTitle" placeholder="Assignment title" style="flex:1;min-width:180px" />
+        <input id="aDue" type="date" style="width:auto" />
+        <button class="btn" onclick="addAssignment($('aCourse').value)">Add</button>
+      </div>` : `<p class="sub">Enroll in a course first — deadlines are attached to a course.</p>
+        <button class="btn soft sm" style="margin-top:10px" onclick="go('courses')">Go to Courses</button>`}
+    </div>
+    <div class="card"><h2 style="margin-bottom:8px">Open</h2>
+      ${pending.map(asgHtml).join('') || emptyArt('Nothing pending. Well played.')}</div>
+    ${done.length ? `<div class="card"><h2 style="margin-bottom:8px">Completed</h2>${done.map(asgHtml).join('')}</div>` : ''}`;
+}
+
+// ===================== flashcards =====================
+function deckCard(d) {
+  const pct = d.cardCount ? Math.round(d.mastered / d.cardCount * 100) : 0;
+  return `<div class="course" onclick="go('study',{deckId:'${d._id}'})">
+    <div class="cover" style="background:${coverFor(d.courseId || d.cardCount)}"></div>
+    <div class="body"><h3>${esc(d.title)}</h3>
+      <p class="sub" style="font-size:12.5px;margin:4px 0 11px">${d.cardCount} cards · ${esc(d.ownerName)}</p>
+      <div class="bar"><i style="width:${pct}%"></i></div>
+      <p class="sub" style="font-size:12px;margin-top:8px">${d.mastered} of ${d.cardCount} mastered</p></div></div>`;
+}
+async function renderDecks() {
+  const [decks, dash] = await Promise.all([api('/decks'), api('/dashboard')]);
+  $('main').innerHTML = `
+    <div class="page-head"><div><h1>Flashcards</h1><p class="sub">Drill with spaced repetition — cards you miss come back sooner.</p></div>
+      <button class="btn" onclick="deckModal(${JSON.stringify(dash.map(c => ({ id: c.id, code: c.code }))).replace(/"/g, '&quot;')})">+ New deck</button></div>
+    ${dash.length === 0 ? `<div class="card" style="margin-bottom:18px">
+        <h2>Enroll in a course to build decks</h2>
+        <p class="sub" style="margin:6px 0 12px">Flashcard decks live inside a course.</p>
+        <button class="btn soft sm" onclick="go('courses')">Go to Courses</button></div>` : ''}
+    <div class="grid g-3">${decks.map(deckCard).join('') || emptyArt('No decks yet — create one from any course.')}</div>`;
+}
+function deckModal(courses) {
+  if (courses && courses.length === 0) return needCourseModal('A flashcard deck');
+  const opts = courses
+    ? courses.map(c => `<option value="${c.id}">${esc(c.code)}</option>`).join('')
+    : `<option value="${ctx.id}">${esc(ctx.code || 'This course')}</option>`;
+  modal(`<h2>New flashcard deck</h2><p class="sub" style="margin:4px 0 18px">Add your first cards now; you can add more later.</p>
+    <div class="field"><label>Course</label><select id="dCourse">${opts}</select></div>
+    <div class="field"><label>Deck title</label><input id="dTitle" placeholder="Normalization forms" /></div>
+    <div class="field"><label>Description</label><input id="dDesc" placeholder="Quick drills before the exam" /></div>
+    <div class="field"><label>Cards</label><div id="dCards"></div>
+      <button class="btn ghost sm" onclick="addCardRow()">+ Add card</button></div>
+    <div class="err" id="dErr"></div>
+    <div class="row" style="justify-content:flex-end"><button class="btn ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn" onclick="createDeck()">Create deck</button></div>`);
+  addCardRow(); addCardRow();
+}
+function addCardRow() {
+  const d = document.createElement('div');
+  d.className = 'row'; d.style.marginBottom = '8px';
+  d.innerHTML = `<input placeholder="Front (question)" class="cf" style="flex:1" />
+                 <input placeholder="Back (answer)" class="cb" style="flex:1" />`;
+  $('dCards').appendChild(d);
+}
+async function createDeck() {
+  try {
+    if (!$('dCourse').value) return needCourseModal('A flashcard deck');
+    if (!val('dTitle')) { $('dErr').textContent = 'Give the deck a title.'; return; }
+    const cards = [...document.querySelectorAll('#dCards .row')].map(r => ({
+      front: r.querySelector('.cf').value.trim(), back: r.querySelector('.cb').value.trim(),
+    })).filter(c => c.front && c.back);
+    await api('/decks', { method: 'POST', body: JSON.stringify({
+      courseId: $('dCourse').value, title: val('dTitle'), description: val('dDesc'), cards,
+    })});
+    closeModal(); go(view, ctx);
+  } catch (e) { $('dErr').textContent = e.message; }
+}
+
+// ---- study mode ----
+let studyState = { deck: null, order: [], i: 0, flipped: false, right: 0, wrong: 0 };
+async function renderStudy() {
+  const deck = await api(`/decks/${ctx.deckId}`);
+  // lowest Leitner box first — the cards you keep missing come up first
+  const order = [...deck.cards].sort((a, b) => a.box - b.box);
+  studyState = { deck, order, i: 0, flipped: false, right: 0, wrong: 0 };
+  drawCard();
+}
+function drawCard() {
+  const { deck, order, i, right, wrong } = studyState;
+  if (!order.length) {
+    $('main').innerHTML = `<button class="btn ghost sm" onclick="go('cards')">← Flashcards</button>
+      <div class="card" style="margin-top:14px">${emptyArt('This deck has no cards yet.')}
+      <div class="row" style="justify-content:center">${deck.ownerId === me.id ? '<button class="btn" onclick="addCardModal()">+ Add a card</button>' : ''}</div></div>`;
+    return;
+  }
+  if (i >= order.length) {
+    const pct = Math.round(right / order.length * 100);
+    $('main').innerHTML = `<button class="btn ghost sm" onclick="go('cards')">← Flashcards</button>
+      <div class="card" style="margin-top:12px;text-align:center;padding:40px">
+        <span class="pill ${pct >= 80 ? 'p-mint' : pct >= 50 ? 'p-sky' : 'p-peach'}">${pct}% correct</span>
+        <h1 style="margin:12px 0 6px">${right} of ${order.length} correct</h1>
+        <p class="sub">Missed cards return to box 1 and appear first next session.</p>
+        <div class="row" style="justify-content:center;margin-top:20px">
+          <button class="btn" onclick="go('study',{deckId:'${deck._id}'})">Study again</button>
+          <button class="btn ghost" onclick="go('cards')">Done</button></div></div>`;
+    return;
+  }
+  const card = order[i];
+  $('main').innerHTML = `
+    <div class="spread"><button class="btn ghost sm" onclick="go('cards')">← Flashcards</button>
+      <span class="sub">Card ${i + 1} of ${order.length} · ${right} correct, ${wrong} missed</span></div>
+    <h1 style="margin:14px 0 4px">${esc(deck.title)}</h1>
+    <p class="sub" style="margin-bottom:16px">Tap the card to flip it.</p>
+    <div class="bar" style="margin-bottom:18px"><i style="width:${i / order.length * 100}%"></i></div>
+    <div class="flip ${studyState.flipped ? 'on' : ''}" id="flip" onclick="flipCard()">
+      <div class="flip-in">
+        <div class="face front"><div><span class="pill p-lav">Box ${card.box} of 5</span>
+          <div style="margin-top:14px">${esc(card.front)}</div></div></div>
+        <div class="face back"><div>${esc(card.back)}</div></div>
+      </div></div>
+    <div class="row" style="justify-content:center;margin-top:22px">
+      ${studyState.flipped
+        ? `<button class="btn ghost" onclick="grade(false)">Got it wrong</button><button class="btn" onclick="grade(true)">Got it right</button>`
+        : `<button class="btn soft" onclick="flipCard()">Show answer</button>`}
+    </div>
+    ${deck.ownerId === me.id ? `<div class="row" style="justify-content:center;margin-top:14px"><button class="btn ghost sm" onclick="addCardModal()">+ Add card</button></div>` : ''}`;
+}
+function flipCard() { studyState.flipped = !studyState.flipped; drawCard(); }
+async function grade(correct) {
+  const card = studyState.order[studyState.i];
+  studyState[correct ? 'right' : 'wrong']++;
+  studyState.i++; studyState.flipped = false;
+  drawCard();
+  api(`/decks/${studyState.deck._id}/review`, { method: 'POST', body: JSON.stringify({ cardId: card._id, correct }) }).catch(() => {});
+}
+function addCardModal() {
+  modal(`<h2>Add a card</h2>
+    <div class="field"><label>Front</label><input id="kFront" placeholder="What is 3NF?" /></div>
+    <div class="field"><label>Back</label><textarea id="kBack" placeholder="No transitive dependencies…"></textarea></div>
+    <div class="err" id="kErr"></div>
+    <div class="row" style="justify-content:flex-end"><button class="btn ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn" onclick="saveCard()">Add</button></div>`);
+}
+async function saveCard() {
+  try {
+    await api(`/decks/${studyState.deck._id}/cards`, { method: 'POST', body: JSON.stringify({ front: val('kFront'), back: val('kBack') }) });
+    closeModal(); go('study', { deckId: studyState.deck._id });
+  } catch (e) { $('kErr').textContent = e.message; }
+}
+
+// ===================== timer =====================
+// One global timer object so the countdown survives page navigation.
+let timer = {
+  mode: 'focus',        // 'focus' | 'break'
+  focusMins: 25, breakMins: 5,
+  total: 25 * 60, left: 25 * 60,
+  running: false, handle: null,
+  courseId: '', elapsed: 0,   // elapsed seconds in the current focus block
+  rounds: 0, lastMsg: '',
+};
+
+function chime() {
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    const ac = new AC();
+    [0, .18, .36].forEach((t, i) => {
+      const o = ac.createOscillator(), g = ac.createGain();
+      o.type = 'sine';
+      o.frequency.value = [660, 880, 1040][i];
+      g.gain.setValueAtTime(.0001, ac.currentTime + t);
+      g.gain.exponentialRampToValueAtTime(.25, ac.currentTime + t + .03);
+      g.gain.exponentialRampToValueAtTime(.0001, ac.currentTime + t + .34);
+      o.connect(g); g.connect(ac.destination);
+      o.start(ac.currentTime + t); o.stop(ac.currentTime + t + .36);
+    });
+  } catch {}
+}
+
+function tickTimer() {
+  timer.left--;
+  if (timer.mode === 'focus') timer.elapsed++;
+  if (timer.left <= 0) return finishBlock();
+  paintTimer(); paintBanner();
+}
+
+async function finishBlock() {
+  clearInterval(timer.handle);
+  timer.running = false;
+  chime();
+  if (timer.mode === 'focus') {
+    const mins = Math.max(1, Math.round(timer.elapsed / 60));
+    await logSession(mins);
+    timer.rounds++;
+    timer.elapsed = 0;
+    timer.mode = 'break';
+    timer.total = timer.breakMins * 60;
+    timer.left = timer.total;
+    timer.lastMsg = `Focus block done — ${mins} min logged. Take a ${timer.breakMins} min break.`;
+  } else {
+    timer.mode = 'focus';
+    timer.total = timer.focusMins * 60;
+    timer.left = timer.total;
+    timer.lastMsg = 'Break over — ready for another round?';
+  }
+  if (view === 'timer') go('timer'); else paintBanner();
+}
+
+async function logSession(minutes) {
+  try {
+    await api('/sessions', { method: 'POST', body: JSON.stringify({ minutes, courseId: timer.courseId || null }) });
+    return true;
+  } catch (e) { timer.lastMsg = 'Could not log session: ' + e.message; return false; }
+}
+
+function toggleTimer() {
+  timer.running = !timer.running;
+  clearInterval(timer.handle);
+  if (timer.running) timer.handle = setInterval(tickTimer, 1000);
+  paintTimer(); paintBanner();
+}
+
+// Stop early but keep the minutes you actually did.
+async function stopAndLog() {
+  clearInterval(timer.handle);
+  timer.running = false;
+  const mins = Math.round(timer.elapsed / 60);
+  if (timer.mode === 'focus' && mins >= 1) {
+    await logSession(mins);
+    timer.lastMsg = `Stopped early — ${mins} min logged.`;
+  } else {
+    timer.lastMsg = mins < 1 ? 'Stopped. Under a minute, so nothing was logged.' : 'Break stopped.';
+  }
+  timer.elapsed = 0;
+  timer.mode = 'focus';
+  timer.total = timer.focusMins * 60;
+  timer.left = timer.total;
+  if (view === 'timer') go('timer'); else paintBanner();
+}
+
+function resetTimer() {
+  clearInterval(timer.handle);
+  timer.running = false; timer.elapsed = 0;
+  timer.total = (timer.mode === 'focus' ? timer.focusMins : timer.breakMins) * 60;
+  timer.left = timer.total;
+  paintTimer(); paintBanner();
+}
+
+function setTimer(min) {
+  timer.focusMins = min; timer.mode = 'focus';
+  clearInterval(timer.handle); timer.running = false; timer.elapsed = 0;
+  timer.total = min * 60; timer.left = min * 60;
+  if (view === 'timer') go('timer');
+}
+
+const mmss = sec => `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`;
+
+function paintTimer() {
+  if ($('clock')) $('clock').textContent = mmss(Math.max(0, timer.left));
+  const ring = $('ring');
+  if (ring) {
+    const c = 2 * Math.PI * 88;
+    ring.setAttribute('stroke-dashoffset', String(c * (1 - timer.left / timer.total)));
+    ring.setAttribute('stroke', timer.mode === 'break' ? '#17a673' : '#6c5ce7');
+  }
+  if ($('tBtn')) $('tBtn').textContent = timer.running ? 'Pause' : (timer.left < timer.total ? 'Resume' : 'Start');
+  if ($('tElapsed')) $('tElapsed').textContent = timer.elapsed >= 60 ? `${Math.floor(timer.elapsed / 60)} min counted so far` : 'Under a minute so far';
+}
+
+// Floating pill so the timer is visible from any page.
+function paintBanner() {
+  let el = $('timerBanner');
+  const show = timer.running || timer.left < timer.total;
+  if (!show || view === 'timer') { if (el) el.remove(); return; }
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'timerBanner';
+    el.style.cssText = 'position:fixed;right:22px;bottom:22px;z-index:60;background:#fff;border-radius:999px;' +
+      'box-shadow:var(--shadow-lg);padding:10px 14px;display:flex;align-items:center;gap:10px;font-weight:700';
+    document.body.appendChild(el);
+  }
+  el.innerHTML = `<span style="width:9px;height:9px;border-radius:50%;background:${timer.mode === 'break' ? 'var(--pos)' : 'var(--accent)'}"></span>
+    <span style="font-variant-numeric:tabular-nums">${mmss(Math.max(0, timer.left))}</span>
+    <button class="btn ${timer.running ? 'ghost' : ''} sm" onclick="toggleTimer()">${timer.running ? 'Pause' : 'Resume'}</button>
+    <button class="btn ghost sm" onclick="go('timer')">Open</button>`;
+}
+
+async function renderTimer() {
+  const [stats, dash, recent] = await Promise.all([
+    api('/sessions/stats'), api('/dashboard'), api('/sessions/recent'),
+  ]);
+  const isBreak = timer.mode === 'break';
+  $('main').innerHTML = `
+    <div class="page-head"><div><h1>Study timer</h1>
+      <p class="sub">Focus blocks are logged automatically. Stopping early still records the minutes completed.</p></div></div>
+
+    ${timer.lastMsg ? `<div class="card" style="background:var(--pos-bg);border-color:#abefc6;padding:12px 16px">
+      <div class="spread"><span style="font-weight:500;color:var(--pos)">${esc(timer.lastMsg)}</span>
+      <button class="btn ghost sm" onclick="timer.lastMsg='';go('timer')">Dismiss</button></div></div>` : ''}
+
+    <div class="grid g-2">
+      <div class="card" style="text-align:center">
+        <div class="row" style="justify-content:center;margin-bottom:6px">
+          <span class="pill ${isBreak ? 'p-mint' : 'p-lav'}">${isBreak ? 'Break' : 'Focus'}</span>
+          ${timer.rounds ? `<span class="pill p-sky">${timer.rounds} round${timer.rounds > 1 ? 's' : ''} today</span>` : ''}
+        </div>
+        <div class="row" style="justify-content:center;margin:12px 0 6px">
+          ${[15, 25, 45, 60].map(m => `<button class="btn ${timer.focusMins === m ? 'soft' : 'ghost'} sm" onclick="setTimer(${m})">${m} min</button>`).join('')}
+        </div>
+        <div class="timer-ring">
+          <svg viewBox="0 0 200 200" width="230" height="230">
+            <circle cx="100" cy="100" r="88" fill="none" stroke="#f0eefb" stroke-width="14"/>
+            <circle id="ring" cx="100" cy="100" r="88" fill="none" stroke="#6c5ce7" stroke-width="14" stroke-linecap="round"
+              stroke-dasharray="${2 * Math.PI * 88}" stroke-dashoffset="0" transform="rotate(-90 100 100)"/>
+          </svg>
+          <div class="t" id="clock">${mmss(timer.left)}</div>
+        </div>
+        <p class="sub" id="tElapsed" style="margin-top:6px"></p>
+        <div class="field" style="max-width:280px;margin:16px auto 12px">
+          <select id="tCourse" onchange="timer.courseId=this.value">
+            <option value="">No specific course</option>
+            ${dash.map(c => `<option value="${c.id}" ${String(timer.courseId) === String(c.id) ? 'selected' : ''}>${esc(c.code)} — ${esc(c.title)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="row" style="justify-content:center">
+          <button class="btn" id="tBtn" onclick="toggleTimer()">Start</button>
+          <button class="btn soft" onclick="stopAndLog()">Stop &amp; log</button>
+          <button class="btn ghost" onclick="resetTimer()">Reset</button>
+        </div>
+        <div class="row" style="justify-content:center;margin-top:10px">
+          <button class="btn ghost sm" onclick="logManual()">Log time manually</button>
+        </div>
+        <div class="err" id="tMsg"></div>
+      </div>
+
+      <div>
+        <div class="grid" style="grid-template-columns:1fr 1fr;gap:14px">
+          <div class="stat s-lav"><div class="n">${stats.streak}</div><div class="l">day streak</div></div>
+          <div class="stat s-mint"><div class="n">${fmtMin(stats.todayMinutes)}</div><div class="l">today</div></div>
+          <div class="stat s-sky"><div class="n">${fmtMin(stats.weekMinutes)}</div><div class="l">this week</div></div>
+          <div class="stat s-peach"><div class="n">${stats.sessionCount}</div><div class="l">sessions logged</div></div>
+        </div>
+        <div class="card" style="margin-top:16px"><h2 style="margin-bottom:16px">Last 7 days</h2>
+          <div class="spark">${last7Bars(stats.last7)}</div></div>
+        <div class="card"><h2 style="margin-bottom:10px">Recent sessions</h2>
+          ${recent.length ? `<table><thead><tr><th>Course</th><th>Date</th><th class="num">Duration</th></tr></thead><tbody>
+            ${recent.map(r => `<tr><td>${r.course_code ? `<span class="code-tag">${esc(r.course_code)}</span>` : '<span class="sub">General</span>'}</td>
+              <td class="sub">${fmtDate(r.studied_on)}</td><td class="num">${fmtMin(r.minutes)}</td></tr>`).join('')}
+          </tbody></table>` : '<p class="sub">No sessions logged yet.</p>'}
+        </div>
+      </div>
+    </div>`;
+  paintTimer(); paintBanner();
+}
+
+async function logManual() {
+  const mins = Number(prompt('How many minutes did you study?', '30'));
+  if (!mins || mins < 1) return;
+  if (await logSession(Math.round(mins))) { timer.lastMsg = `${Math.round(mins)} min logged.`; go('timer'); }
+  else if ($('tMsg')) $('tMsg').textContent = timer.lastMsg;
+}
+
+// ===================== grades =====================
+async function renderGrades() {
+  const [data, dash] = await Promise.all([api('/grades'), api('/dashboard')]);
+  $('main').innerHTML = `
+    <div class="page-head"><div><h1>Grades</h1>
+      <p class="sub">Record marks as you receive them. Weighted averages update automatically.</p></div>
+      <div style="text-align:right"><div style="font-size:26px;font-weight:600;letter-spacing:-.025em">${data.overall}%</div>
+        <span class="pill p-lav">Overall grade ${esc(data.overallGrade)}</span></div></div>
+
+    <div class="card">
+      <h2 style="margin-bottom:12px">Add a mark</h2>
+      ${dash.length ? `<div class="row">
+        <select id="gCourse" style="width:auto">${dash.map(c => `<option value="${c.id}">${esc(c.code)}</option>`).join('')}</select>
+        <input id="gTitle" placeholder="Mid-sem, Lab 3…" style="flex:1;min-width:150px" />
+        <input id="gScore" type="number" step="0.5" placeholder="Score" style="width:100px" />
+        <input id="gMax" type="number" step="0.5" placeholder="Out of" style="width:100px" />
+        <input id="gWeight" type="number" step="0.5" value="1" title="Weight" style="width:90px" />
+        <button class="btn" onclick="addGrade()">Add</button>
+      </div><p class="sub" style="font-size:12px;margin-top:8px">Weight lets a final exam count more than a quiz. Leave it at 1 if everything counts equally.</p>
+      <div class="err" id="gErr"></div>`
+      : `<p class="sub">Enroll in a course first.</p><button class="btn soft sm" style="margin-top:10px" onclick="go('courses')">Go to Courses</button>`}
+    </div>
+
+    ${data.courses.length ? data.courses.map(c => `
+      <div class="card">
+        <div class="spread" style="margin-bottom:12px">
+          <div><h2>${esc(c.code)} — ${esc(c.title)}</h2>
+            <p class="sub" style="font-size:13px">${c.items.length} assessment${c.items.length > 1 ? 's' : ''}</p></div>
+          <div style="text-align:right"><div style="font-size:24px;font-weight:800">${c.average}%</div>
+            <span class="pill ${c.average >= 70 ? 'p-mint' : c.average >= 50 ? 'p-sky' : 'p-peach'}">${esc(c.grade)}</span></div>
+        </div>
+        <div class="bar"><i style="width:${Math.min(100, c.average)}%"></i></div>
+        <table style="margin-top:14px"><thead><tr>
+            <th>Assessment</th><th class="num">Score</th><th class="num">Weight</th><th class="num">Result</th><th>Date</th><th></th>
+          </tr></thead><tbody>
+          ${c.items.map(i => `<tr>
+            <td style="font-weight:500">${esc(i.title)}</td>
+            <td class="num">${i.score} / ${i.maxScore}</td>
+            <td class="num">${i.weight}</td>
+            <td class="num"><span class="pill ${i.pct >= 70 ? 'p-mint' : i.pct >= 50 ? 'p-sky' : 'p-peach'}">${Math.round(i.pct)}%</span></td>
+            <td class="sub">${fmtDate(i.recordedOn)}</td>
+            <td class="num"><button class="btn ghost sm icon" onclick="delGrade(${i.id})">Remove</button></td>
+          </tr>`).join('')}
+        </tbody></table>
+      </div>`).join('')
+    : `<div class="card">${emptyArt('No marks recorded yet.')}</div>`}`;
+}
+async function addGrade() {
+  const el = $('gErr'); el.textContent = '';
+  if (!val('gTitle') || !val('gScore') || !val('gMax')) { el.textContent = 'Title, score and total are all required.'; return; }
+  try {
+    await api('/grades', { method: 'POST', body: JSON.stringify({
+      courseId: $('gCourse').value, title: val('gTitle'),
+      score: val('gScore'), maxScore: val('gMax'), weight: val('gWeight') || 1,
+    })});
+    go('grades');
+  } catch (e) { el.textContent = e.message; }
+}
+async function delGrade(id) { await api(`/grades/${id}`, { method: 'DELETE' }); go('grades'); }
+
+// ===================== leaderboard =====================
+async function renderBoard() {
+  const rows = await api('/sessions/leaderboard');
+
+  $('main').innerHTML = `
+    <div class="page-head"><div><h1>Leaderboard</h1>
+      <p class="sub">Study time logged in the last seven days.</p></div></div>
+    <div class="card" style="padding:6px 10px">
+      ${rows.length ? `<table><thead><tr>
+          <th style="width:52px" class="num">Rank</th><th>Student</th>
+          <th class="num">Active days</th><th class="num">Study time</th>
+        </tr></thead><tbody>
+        ${rows.map(r => `<tr style="${r.isMe ? 'background:var(--accent-2)' : ''}">
+          <td class="num" style="font-weight:600">${r.rank}</td>
+          <td><div class="row" style="gap:9px;flex-wrap:nowrap">${avatarHtml(r, 30)}
+            <span style="font-weight:500">${esc(r.name)}${r.isMe ? ' (you)' : ''}</span></div></td>
+          <td class="num">${r.activeDays}</td>
+          <td class="num" style="font-weight:600">${fmtMin(r.minutes)}</td>
+        </tr>`).join('')}
+      </tbody></table>` : emptyArt('No study time logged this week yet.')}
+    </div>`;
+}
+
+// ===================== search =====================
+async function renderSearch() {
+  const q = (ctx.q || '').trim();
+  const r = q.length >= 2 ? await api('/search?q=' + encodeURIComponent(q)) : { courses: [], notes: [], decks: [] };
+  const total = r.courses.length + r.notes.length + r.decks.length;
+  $('main').innerHTML = `
+    <div class="page-head"><div><h1>Search</h1>
+      <p class="sub">${q.length < 2 ? 'Type at least 2 characters in the sidebar search box.' : `${total} result${total === 1 ? '' : 's'} for “${esc(q)}”`}</p></div></div>
+    ${r.courses.length ? `<div class="card"><h2 style="margin-bottom:12px">Courses</h2>
+      <div class="grid g-3">${r.courses.map(c => `
+        <div class="course" onclick="go('course',{id:${c.id},code:'${esc(c.code)}',title:'${esc(c.title)}'})">
+          <div class="cover" style="background:${coverFor(c.id)}"></div>
+          <div class="body"><span class="code-tag">${esc(c.code)}</span>
+            <h3 style="margin-top:8px">${esc(c.title)}</h3>
+            <p class="sub" style="font-size:12.5px">${esc(c.semester)}</p></div>
+        </div>`).join('')}</div></div>` : ''}
+    ${r.notes.length ? `<div class="card"><h2 style="margin-bottom:12px">Notes</h2>
+      ${r.notes.map(n => `<div class="todo"><div style="flex:1"><div style="font-weight:600">${esc(n.title)}</div>
+        <div class="sub" style="font-size:13px">by ${esc(n.authorName)} · ${fmtDate(n.createdAt)}</div></div>
+        <button class="btn ghost sm" onclick="go('course',{id:${n.courseId}})">Open course</button></div>`).join('')}</div>` : ''}
+    ${r.decks.length ? `<div class="card"><h2 style="margin-bottom:12px">Flashcard decks</h2>
+      ${r.decks.map(d => `<div class="todo"><div style="flex:1"><div style="font-weight:600">${esc(d.title)}</div>
+        <div class="sub" style="font-size:13px">${d.cardCount} cards · by ${esc(d.ownerName)}</div></div>
+        <button class="btn soft sm" onclick="go('study',{deckId:'${d._id}'})">Study</button></div>`).join('')}</div>` : ''}
+    ${q.length >= 2 && total === 0 ? `<div class="card">${emptyArt('Nothing matched that search.')}</div>` : ''}`;
+}
+
+// ===================== profile =====================
+async function renderProfile() {
+  const p = await api('/profile');
+  const s = p.stats;
+  $('main').innerHTML = `
+    <div class="page-head"><div><h1>Profile</h1><p class="sub">Your details and everything you've built so far.</p></div>
+      <button class="btn ghost" onclick="logout()">Sign out</button></div>
+
+    <div class="card">
+      <div class="row" style="gap:18px;flex-wrap:nowrap;align-items:flex-start">
+        ${avatarHtml(p, 72)}
+        <div style="flex:1;min-width:200px">
+          <h1>${esc(p.name)}</h1>
+          <p class="sub" style="margin-top:2px">${esc(p.email)}${p.college ? ' · ' + esc(p.college) : ''}</p>
+          ${p.bio ? `<p style="margin-top:10px;max-width:560px;color:var(--ink-2)">${esc(p.bio)}</p>`
+                  : '<p class="sub" style="margin-top:10px">No bio added yet.</p>'}
+          <p class="sub" style="font-size:12px;margin-top:10px">Member since ${fmtDate(p.created_at)}</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid g-4" style="margin-top:18px">
+      <div class="stat s-lav"><div class="n">${s.courses}</div><div class="l">courses</div></div>
+      <div class="stat s-mint"><div class="n">${s.topicsDone}/${s.topicsTotal}</div><div class="l">topics completed</div></div>
+      <div class="stat s-sky"><div class="n">${fmtMin(s.totalMinutes)}</div><div class="l">total study time</div></div>
+      <div class="stat s-peach"><div class="n">${s.notesShared}</div><div class="l">notes shared</div></div>
+      <div class="stat s-lav"><div class="n">${s.decksBuilt}</div><div class="l">decks built</div></div>
+      <div class="stat s-peach"><div class="n">${s.openAssignments}</div><div class="l">open deadlines</div></div>
+    </div>
+
+    <div class="grid g-2" style="margin-top:18px">
+      <div class="card">
+        <h2 style="margin-bottom:16px">Edit details</h2>
+        <div class="row" style="margin-bottom:16px">
+          ${avatarHtml(p, 64, 'pAv')}
+          <div><input type="file" id="pAvatar" accept="image/*" style="max-width:230px" />
+            <p class="sub" style="font-size:12px;margin-top:5px">JPG or PNG, up to 3 MB</p></div>
+        </div>
+        <div class="field"><label>Name</label><input id="pName" value="${esc(p.name)}" /></div>
+        <div class="field"><label>College</label><input id="pCollege" value="${esc(p.college || '')}" placeholder="K. J. Somaiya School of Engineering" /></div>
+        <div class="field"><label>Bio</label><textarea id="pBio" style="min-height:80px" placeholder="Final-year IT student, into databases and backend.">${esc(p.bio || '')}</textarea></div>
+        <div class="field"><label>Daily study goal (minutes)</label><input id="pGoal" type="number" min="10" max="600" value="${p.daily_goal_minutes}" /></div>
+        <button class="btn" onclick="saveProfile()">Save changes</button>
+        <div class="ok" id="pMsg"></div>
+      </div>
+
+      <div class="card">
+        <h2 style="margin-bottom:16px">Change password</h2>
+        <div class="field"><label>Current password</label><input id="pwCur" type="password" /></div>
+        <div class="field"><label>New password</label><input id="pwNew" type="password" placeholder="At least 8 characters" /></div>
+        <button class="btn soft" onclick="changePassword()">Update password</button>
+        <div class="ok" id="pwMsg"></div>
+      </div>
+    </div>`;
+}
+async function saveProfile() {
+  $('pMsg').textContent = '';
+  try {
+    const file = $('pAvatar').files?.[0];
+    const avatar = file ? (await readFile(file)).dataUrl : undefined;
+    await api('/profile', { method: 'PUT', body: JSON.stringify({
+      name: val('pName'), college: val('pCollege'), bio: val('pBio'),
+      dailyGoalMinutes: $('pGoal').value, avatar,
+    })});
+    await refreshMe();
+    $('pMsg').textContent = 'Saved.';
+    setTimeout(() => go('profile'), 500);
+  } catch (e) { $('pMsg').textContent = e.message; $('pMsg').className = 'err'; }
+}
+async function changePassword() {
+  const el = $('pwMsg'); el.className = 'ok'; el.textContent = '';
+  try {
+    await api('/profile/password', { method: 'PUT', body: JSON.stringify({
+      currentPassword: $('pwCur').value, newPassword: $('pwNew').value,
+    })});
+    el.textContent = 'Password updated.';
+    $('pwCur').value = ''; $('pwNew').value = '';
+  } catch (e) { el.className = 'err'; el.textContent = e.message; }
+}
+</script>
+</body>
+</html>

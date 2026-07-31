@@ -1,0 +1,463 @@
+{
+  "info": {
+    "name": "StudyHub API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Full StudyHub endpoint suite. Run Register or Login first \u2014 a test script saves {{token}} automatically."
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000/api"
+    },
+    {
+      "key": "token",
+      "value": ""
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const d = pm.response.json();",
+                  "if (d.token) pm.collectionVariables.set('token', d.token);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test User\",\n  \"email\": \"test@studyhub.dev\",\n  \"password\": \"password123\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const d = pm.response.json();",
+                  "if (d.token) pm.collectionVariables.set('token', d.token);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"vansh@studyhub.dev\",\n  \"password\": \"password123\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Profile",
+      "item": [
+        {
+          "name": "Get profile",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/profile"
+          }
+        },
+        {
+          "name": "Update profile",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/profile",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Vansh\",\n  \"college\": \"K. J. Somaiya School of Engineering\",\n  \"bio\": \"Final-year IT student\",\n  \"dailyGoalMinutes\": 90\n}"
+            }
+          }
+        },
+        {
+          "name": "Change password",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/profile/password",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"password123\",\n  \"newPassword\": \"newpassword123\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Courses",
+      "item": [
+        {
+          "name": "List courses",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/courses"
+          }
+        },
+        {
+          "name": "Create course",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/courses",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"CS304\",\n  \"title\": \"Software Engineering\",\n  \"semester\": \"2026-Fall\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Enroll",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/courses/1/enroll"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Progress",
+      "item": [
+        {
+          "name": "My progress for course",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/progress/1"
+          }
+        },
+        {
+          "name": "Upsert topic status",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/progress",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"courseId\": 1,\n  \"topic\": \"Indexing\",\n  \"status\": \"in_progress\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete topic",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/progress/1"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notes",
+      "item": [
+        {
+          "name": "List notes (filter/search)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/notes?courseId=1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notes"
+              ],
+              "query": [
+                {
+                  "key": "courseId",
+                  "value": "1"
+                },
+                {
+                  "key": "tag",
+                  "value": "sql",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "normalization",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create note",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/notes",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"courseId\": 1,\n  \"title\": \"Normalization cheat sheet\",\n  \"content\": \"1NF: atomic values. 2NF: no partial dependency. 3NF: no transitive dependency.\",\n  \"tags\": [\"sql\", \"exam-prep\"]\n}"
+            }
+          }
+        },
+        {
+          "name": "Get note by id",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/notes/NOTE_ID"
+          }
+        },
+        {
+          "name": "Toggle upvote",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/notes/NOTE_ID/upvote"
+          }
+        },
+        {
+          "name": "Delete note",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/notes/NOTE_ID"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Dashboard",
+      "item": [
+        {
+          "name": "My dashboard",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/dashboard"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health check",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/health",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Flashcards",
+      "item": [
+        {
+          "name": "List decks",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/decks?courseId=1"
+          }
+        },
+        {
+          "name": "Create deck",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/decks",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"courseId\": 1,\n  \"title\": \"Normal forms\",\n  \"description\": \"Exam drills\",\n  \"cards\": [\n    {\n      \"front\": \"What is 2NF?\",\n      \"back\": \"No partial dependency on a composite key\"\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Add card",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/decks/DECK_ID/cards",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"front\": \"What is 3NF?\",\n  \"back\": \"No transitive dependencies\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Review card",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/decks/DECK_ID/review",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cardId\": \"CARD_ID\",\n  \"correct\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete deck",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/decks/DECK_ID"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Deadlines",
+      "item": [
+        {
+          "name": "List assignments",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/assignments?scope=upcoming"
+          }
+        },
+        {
+          "name": "Create assignment",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/assignments",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"courseId\": 1,\n  \"title\": \"ER diagram submission\",\n  \"dueDate\": \"2026-08-15\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Mark done",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/assignments/1",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"done\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/assignments/1"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Study sessions",
+      "item": [
+        {
+          "name": "Stats + streak",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/sessions/stats"
+          }
+        },
+        {
+          "name": "Log session",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/sessions",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"minutes\": 25,\n  \"courseId\": 1\n}"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
