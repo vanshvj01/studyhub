@@ -8,6 +8,7 @@ const { loadEnv } = require('./config/env');
 const { logger, requestLogger } = require('./lib/logger');
 const { connectMongo, pingMySQL } = require('./config/db');
 const { initDb } = require('./config/initDb');
+const { UPLOAD_DIR, ensureDir } = require('./config/uploads');
 
 const env = loadEnv();
 
@@ -17,6 +18,10 @@ app.use(cors());
 // generous limit: note attachments and avatars arrive as base64 data URLs
 app.use(express.json({ limit: '25mb' }));
 app.use('/api', requestLogger);
+// Served before the public/ handler so that when UPLOAD_DIR points at a mounted
+// volume, /uploads/* resolves to the volume rather than 404ing on the image built
+// at deploy time. With the default UPLOAD_DIR the two paths are the same folder.
+app.use('/uploads', express.static(UPLOAD_DIR));
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
 app.use('/api/auth', require('./routes/auth'));
@@ -45,9 +50,10 @@ app.use((err, req, res, next) => {
 
 async function start() {
   try {
+    ensureDir(); // a freshly mounted volume starts empty
     await Promise.all([pingMySQL(), connectMongo()]);
     await initDb();
-    app.listen(env.port, () => logger.info(`StudyHub listening on http://localhost:${env.port}`, { env: env.nodeEnv }));
+    app.listen(env.port, () => logger.info(`StudyHub listening on port ${env.port}`, { env: env.nodeEnv, uploads: UPLOAD_DIR }));
   } catch (err) {
     logger.error('Startup failed — are MySQL and MongoDB running? (docker compose up -d)');
     logger.error(err.message);

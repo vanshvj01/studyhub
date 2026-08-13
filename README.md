@@ -86,6 +86,22 @@ npm start              # http://localhost:3000
 
 Demo login: `vansh@studyhub.dev` / `password123`
 
+## Deploy
+
+See [DEPLOY.md](DEPLOY.md) for the full walkthrough. Short version — StudyHub needs a
+long-running Node process, MySQL, MongoDB and a persistent disk, so it deploys to
+Railway rather than a serverless host like Vercel or Netlify.
+
+| Variable | Production value |
+|---|---|
+| `NODE_ENV` | `production` |
+| `UPLOAD_DIR` | `/data/uploads` — **must** point at a mounted volume, or redeploys erase uploads |
+| `MYSQL_SSL` | `false` on Railway; `true` for managed MySQL that requires TLS |
+| `JWT_SECRET` | 32+ random characters; the app refuses to boot in production without one |
+
+`initDb` applies `db/schema.sql` and the column migrations on every boot and is
+idempotent, so deploying is just a push — there is no separate migration step.
+
 ## API
 
 All routes except `/api/auth/*` and `/api/health` require `Authorization: Bearer <token>`.

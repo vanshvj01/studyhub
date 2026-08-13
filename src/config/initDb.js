@@ -7,6 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const mysql = require('mysql2/promise');
 const { logger } = require('../lib/logger');
+const { mysqlConfig } = require('./db');
 
 // Columns added after the first release. CREATE TABLE IF NOT EXISTS will not
 // add these to an existing table, so they are applied separately.
@@ -19,14 +20,7 @@ const COLUMN_MIGRATIONS = [
 
 async function initDb() {
   const database = process.env.MYSQL_DATABASE || 'studyhub';
-  const conn = await mysql.createConnection({
-    host: process.env.MYSQL_HOST || 'localhost',
-    port: Number(process.env.MYSQL_PORT || 3306),
-    user: process.env.MYSQL_USER || 'studyhub',
-    password: process.env.MYSQL_PASSWORD || 'studyhub_pass',
-    database,
-    multipleStatements: true,
-  });
+  const conn = await mysql.createConnection(mysqlConfig({ database, multipleStatements: true }));
 
   try {
     const dbDir = path.join(__dirname, '..', '..', 'db');

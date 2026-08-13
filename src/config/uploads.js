@@ -4,7 +4,12 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const UPLOAD_DIR = path.join(__dirname, '..', '..', 'public', 'uploads');
+// Defaults to public/uploads for local development. In production this points at
+// a mounted volume (on Railway: UPLOAD_DIR=/data/uploads) so user files survive
+// redeploys — the container filesystem is rebuilt from scratch on every push.
+const UPLOAD_DIR = process.env.UPLOAD_DIR
+  ? path.resolve(process.env.UPLOAD_DIR)
+  : path.join(__dirname, '..', '..', 'public', 'uploads');
 const MAX_BYTES = 8 * 1024 * 1024; // 8 MB per file
 
 const EXT = {
@@ -42,4 +47,4 @@ function saveDataUrl({ name, dataUrl }) {
   };
 }
 
-module.exports = { saveDataUrl, UPLOAD_DIR };
+module.exports = { saveDataUrl, ensureDir, UPLOAD_DIR };
