@@ -4,6 +4,7 @@ const { pool } = require('../config/db');
 const { signToken } = require('../middleware/auth');
 const { logger } = require('../lib/logger');
 const { shortCode, token: randomToken } = require('../lib/ids');
+const { sendVerification, autoVerifyEnabled, transport } = require('../lib/mailer');
 const {
   validateUsername, validateEmail, validatePassword, normalizeUsername,
 } = require('../lib/accounts');
@@ -53,25 +54,39 @@ router.post('/register', async (req, res, next) => {
       referrerId = rows[0].id;
     }
 
-    const verificationToken = randomToken(24);
+    // AUTO_VERIFY exists for demo deployments with no mail provider: accounts
+    // are usable immediately instead of waiting on a link nobody receives.
+    const autoVerify = autoVerifyEnabled();
+    const verificationToken = autoVerify ? null : randomToken(24);
+
     const [result] = await pool.execute(
       `INSERT INTO users (name, username, email, password_hash, role, referral_code,
-                          referred_by, verification_token, email_verified)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+                          referred_by, verification_token, email_verified, verified_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [String(name).trim(), username.value, email.value, await bcrypt.hash(pass.value, 10),
-       accountRole, await uniqueReferralCode(), referrerId, verificationToken]
+       accountRole, await uniqueReferralCode(), referrerId, verificationToken,
+       autoVerify ? 1 : 0, autoVerify ? new Date() : null]
     );
 
-    // No mail server in this project: the link is logged, and returned outside
-    // production so the flow is testable locally.
-    const base = publicBase(req);
-    const verifyUrl = `${base}/api/auth/verify?token=${verificationToken}`;
-    logger.info('verification link issued', { user: result.insertId, url: verifyUrl });
+    const user = { id: result.insertId, name, username: username.value, email: email.value, role: accountRole };
+
+    if (autoVerify) {
+      return res.status(201).json({ message: 'Account created. You can sign in now.', user, verified: true });
+    }
+
+    const verifyUrl = `${publicBase(req)}/api/auth/verify?token=${verificationToken}`;
+    const delivery = await sendVerification({ to: email.value, name, url: verifyUrl });
+    logger.info('verification link issued', { user: user.id, delivered: delivery.delivered });
 
     res.status(201).json({
-      message: 'Account created. Verify your email address to sign in.',
-      user: { id: result.insertId, name, username: username.value, email: email.value, role: accountRole },
-      ...(isProd() ? {} : { verifyUrl }),
+      message: delivery.delivered
+        ? 'Account created. Check your email for the verification link.'
+        : 'Account created. Verify your email address to sign in.',
+      user,
+      emailSent: delivery.delivered,
+      // Without a mail provider the link would be unreachable, so it is returned
+      // to the client. Never do this once email actually works.
+      ...(delivery.delivered || isProd() && transport() === 'resend' ? {} : { verifyUrl }),
     });
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') {
@@ -105,15 +120,16 @@ router.post('/resend', async (req, res, next) => {
     if (!email.ok) return res.json(generic);
 
     const [rows] = await pool.execute(
-      'SELECT id, email_verified FROM users WHERE email = ?', [email.value]
+      'SELECT id, name, email_verified FROM users WHERE email = ?', [email.value]
     );
     if (rows.length === 0 || rows[0].email_verified) return res.json(generic);
 
     const verificationToken = randomToken(24);
     await pool.execute('UPDATE users SET verification_token = ? WHERE id = ?', [verificationToken, rows[0].id]);
     const verifyUrl = `${publicBase(req)}/api/auth/verify?token=${verificationToken}`;
-    logger.info('verification link re-issued', { user: rows[0].id, url: verifyUrl });
-    res.json(isProd() ? generic : { ...generic, verifyUrl });
+    const delivery = await sendVerification({ to: email.value, name: rows[0].name, url: verifyUrl });
+    logger.info('verification link re-issued', { user: rows[0].id, delivered: delivery.delivered });
+    res.json(delivery.delivered ? generic : { ...generic, verifyUrl });
   } catch (err) { next(err); }
 });
 

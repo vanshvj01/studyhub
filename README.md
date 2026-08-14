@@ -29,6 +29,7 @@ No build step and no frontend framework — the client is a single self-containe
 
 ## Engineering notes
 
+- **Email delivery** (`src/lib/mailer.js`) — Resend over HTTP when `RESEND_API_KEY` is set, falling back to logging so local development needs no account, no SMTP and no extra dependency. A failed send never fails the signup: the account is created and the user can request a new link.
 - **Account security** — unique usernames (case-insensitive), password rules enforced server-side, email verification before first sign-in, and identical responses for wrong-password and unknown-account so the API cannot be used to enumerate users. There is no mail server, so the verification link is written to the log and returned outside production.
 - **Roles** — `requireRole` middleware keeps parent accounts to a read-only surface: they can reach their children's summaries and nothing else. The same check runs on the socket handshake, so realtime is not a way around it.
 - **Validation layer** (`src/lib/validate.js`) — routes declare a schema instead of hand-rolling `if (!x)` checks, so every endpoint returns the same error shape: `{ error, errors[] }`. Unknown fields are dropped, which stops clients writing columns they shouldn't.
@@ -46,7 +47,7 @@ No build step and no frontend framework — the client is a single self-containe
 npm test        # node --test, no external test framework
 ```
 
-39 tests covering account rules (usernames, emails, passwords, invite-code alphabet), the validation layer, streak edge cases (gaps, stale streaks, duplicate days), weighted grade maths, upload MIME/size rejection, and environment validation in isolated processes.
+45 tests covering account rules, email templating and transport selection, (usernames, emails, passwords, invite-code alphabet), the validation layer, streak edge cases (gaps, stale streaks, duplicate days), weighted grade maths, upload MIME/size rejection, and environment validation in isolated processes.
 
 ## Architecture
 

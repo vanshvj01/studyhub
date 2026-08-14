@@ -89,6 +89,46 @@ CORS_ORIGIN=https://studyhub-production-2c7b.up.railway.app
 
 **Settings → Networking → Generate Domain.** Railway injects `PORT` and the app reads it.
 
+
+---
+
+## Email (so strangers can actually sign up)
+
+Registration sends a verification link. Without a mail provider that link only
+appears in the logs, which means nobody but you can finish signing up. Two ways
+to fix that — pick one and set it in Railway's **Variables**.
+
+### Option A — real email via Resend (recommended)
+
+1. Sign up at [resend.com](https://resend.com) (free tier: 3,000 emails/month).
+2. **API Keys → Create API Key**, copy it.
+3. In Railway add:
+
+```
+RESEND_API_KEY=re_xxxxxxxxxxxx
+MAIL_FROM=StudyHub <onboarding@resend.dev>
+```
+
+`onboarding@resend.dev` is Resend's shared sender and works immediately with no
+DNS setup. To send from your own domain, verify it in Resend and change
+`MAIL_FROM` to match — otherwise the mail will be rejected.
+
+If Resend is unreachable the signup still succeeds; the failure is logged and the
+user can request a fresh link from the sign-in screen.
+
+### Option B — skip verification (demo mode)
+
+```
+AUTO_VERIFY=true
+```
+
+New accounts are created already verified and can sign in immediately. Fine for a
+portfolio demo, wrong for anything real — it lets anyone register with an address
+they do not own.
+
+If neither is set, the app boots but logs a warning at startup telling you that
+new users will be stuck.
+
 ---
 
 ## After each deploy, check
@@ -103,9 +143,9 @@ CORS_ORIGIN=https://studyhub-production-2c7b.up.railway.app
 
 ## Known limits of this deployment
 
-- **Verification "emails" are log lines.** There is no mail server, so a new user
-  cannot verify without someone reading the logs. Wiring up Resend or Postmark is a
-  small change and a sensible next commit.
+- **Email needs configuring.** Set `RESEND_API_KEY` for real delivery or
+  `AUTO_VERIFY=true` for demo mode — see the email section above. With neither,
+  verification links only reach the logs.
 - **Video runs on the public Jitsi service**, so visitors must allow camera and
   microphone access, and that feature needs internet even if the rest is reachable.
 - **Attachments and avatars live in MongoDB**, not on disk. No volume to mount, and

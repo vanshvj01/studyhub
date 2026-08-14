@@ -37,6 +37,15 @@ function loadEnv() {
     problems.push('MONGO_URI must start with mongodb:// or mongodb+srv://');
   }
 
+  // A production deployment that can neither send email nor auto-verify would
+  // leave every new user stuck on the "check your email" screen.
+  if (process.env.NODE_ENV === 'production'
+      && !process.env.RESEND_API_KEY
+      && String(process.env.AUTO_VERIFY || '').toLowerCase() !== 'true') {
+    logger.warn('No RESEND_API_KEY and AUTO_VERIFY is off: new users cannot verify their email. '
+              + 'Set one of them, or verification links will only appear in these logs.');
+  }
+
   if (problems.length) {
     logger.error('Configuration problems found:');
     problems.forEach(p => logger.error('  - ' + p));
