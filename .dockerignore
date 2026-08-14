@@ -1,0 +1,24 @@
+# Keep the build context small and never bake secrets or local state into the image.
+node_modules
+npm-debug.log*
+*.log
+
+# secrets — .env.example is intentionally kept
+.env
+.env.local
+.env.*.local
+
+.git
+.gitignore
+
+# user uploads live on the mounted volume, never in the image
+public/uploads/*
+
+# local scratch
+_patches
+_to_delete
+coverage
+.nyc_output
+.vscode
+.idea
+.DS_Store
