@@ -3,6 +3,7 @@
 INSERT INTO users (name, email, password_hash) VALUES
   ('Vansh',  'vansh@studyhub.dev',  '$2a$10$Otgk3OCsX1AfVg5zM2NoNuLK3ayjEhokH4BbyibnxAoCZfL5e65Su'),
   ('Asha',   'asha@studyhub.dev',   '$2a$10$Otgk3OCsX1AfVg5zM2NoNuLK3ayjEhokH4BbyibnxAoCZfL5e65Su');
+-- usernames, referral codes and verified status are filled in by initDb's backfill
 
 INSERT INTO courses (code, title, semester, created_by) VALUES
   ('CS301', 'Database Management Systems', '2026-Fall', 1),

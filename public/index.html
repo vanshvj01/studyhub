@@ -198,10 +198,44 @@
                  color: var(--ink-3); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
   .tabs button:hover { color: var(--ink); }
   .tabs button.on { color: var(--accent); border-bottom-color: var(--accent); }
+  /* ---------- chat ---------- */
+  .chat-wrap { display: grid; grid-template-columns: 268px 1fr; gap: 14px; align-items: start; }
+  .chat-list { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; }
+  .chat-item { display: flex; gap: 10px; align-items: center; padding: 10px 12px; cursor: pointer; border-bottom: 1px solid var(--border); }
+  .chat-item:last-child { border-bottom: 0; }
+  .chat-item:hover { background: var(--surface-2); }
+  .chat-item.on { background: var(--accent-2); }
+  .chat-thread { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); display: flex; flex-direction: column; height: 66vh; min-height: 420px; }
+  .chat-head { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+  .chat-body { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 8px; background: var(--surface-2); }
+  .chat-foot { padding: 10px 12px; border-top: 1px solid var(--border); display: flex; gap: 8px; align-items: center; }
+  .bubble { max-width: 68%; padding: 8px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); font-size: 13.5px; }
+  .bubble .who { font-size: 11.5px; color: var(--ink-3); font-weight: 500; margin-bottom: 2px; }
+  .bubble .at { font-size: 11px; color: var(--ink-3); margin-top: 3px; }
+  .bubble.me { align-self: flex-end; background: var(--accent); border-color: var(--accent); color: #fff; }
+  .bubble.me .who, .bubble.me .at { color: rgba(255,255,255,.75); }
+  .bubble .shared { display: block; margin-top: 6px; padding: 8px 10px; border-radius: 8px; background: var(--surface-2);
+                    border: 1px solid var(--border); color: var(--accent); text-decoration: none; font-weight: 500; font-size: 12.5px; }
+  .bubble.me .shared { background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.28); color: #fff; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border-2); flex-shrink: 0; }
+  .dot.on { background: var(--pos); }
+  .typing { font-size: 12px; color: var(--ink-3); font-style: italic; padding: 0 16px 6px; }
+  .video-frame { width: 100%; height: 460px; border: 1px solid var(--border); border-radius: var(--r-lg); background: #000; }
+
+  /* ---------- avatar zoom / crop ---------- */
+  .crop-view { width: 240px; height: 240px; border-radius: 50%; overflow: hidden; position: relative;
+               background: var(--surface-2); border: 1px solid var(--border-2); margin: 0 auto; cursor: grab; }
+  .crop-view img { position: absolute; user-select: none; -webkit-user-drag: none; }
+  .crop-view.dragging { cursor: grabbing; }
+  .zoom-view { max-width: min(78vw, 560px); max-height: 72vh; overflow: hidden; border-radius: var(--r-lg); background: var(--surface-2); display: grid; place-items: center; }
+  .zoom-view img { transition: transform .15s; transform-origin: center; max-width: 100%; max-height: 72vh; display: block; }
+  input[type=range] { accent-color: var(--accent); padding: 0; }
+
   .modal-bg { position: fixed; inset: 0; background: rgba(16,24,40,.45); display: grid; place-items: center; padding: 20px; z-index: 50; }
   .modal { background: var(--surface); border-radius: var(--r-lg); padding: 22px; width: 100%; max-width: 500px;
            max-height: 88vh; overflow: auto; box-shadow: var(--shadow-lg); }
 </style>
+<script src="/socket.io/socket.io.js" defer></script>
 </head>
 <body>
 
@@ -240,25 +274,77 @@
   </div>
   <div class="auth-form">
     <div class="box">
-      <div class="row" style="gap:9px;margin-bottom:26px">
-        <div class="mark">SH</div>
-        <div style="font-weight:600;font-size:15px">StudyHub</div>
+      <div id="verifiedBanner" class="hidden" style="margin-bottom:16px;padding:11px 14px;background:var(--pos-bg);
+           border:1px solid #abefc6;border-radius:var(--r-md);color:var(--pos);font-size:13px;font-weight:500"></div>
+
+      <!-- sign in / register form -->
+      <div id="authForm">
+        <h1 id="authTitle">Sign in</h1>
+        <p class="sub" style="margin:6px 0 20px" id="authLead">Use your username or college email address.</p>
+
+        <div class="field hidden" id="nameField">
+          <label>Full name</label><input id="regName" placeholder="Vansh Vijayvargiya" autocomplete="name" />
+        </div>
+
+        <div class="field hidden" id="usernameField">
+          <label>Username</label>
+          <input id="regUsername" placeholder="vansh_v" autocomplete="username" oninput="checkUsername()" />
+          <p class="sub" style="font-size:12px;margin-top:5px" id="usernameHint">3–20 characters: lowercase letters, numbers or underscore.</p>
+        </div>
+
+        <div class="field" id="identifierField">
+          <label id="identifierLabel">Username or email</label>
+          <input id="identifier" placeholder="vansh_v" autocomplete="username" />
+        </div>
+
+        <div class="field hidden" id="emailField">
+          <label>Email address</label><input id="regEmail" type="email" placeholder="you@somaiya.edu" autocomplete="email" />
+        </div>
+
+        <div class="field">
+          <label>Password</label>
+          <input id="password" type="password" placeholder="••••••••" autocomplete="current-password" oninput="paintStrength()" />
+          <div id="strengthWrap" class="hidden" style="margin-top:7px">
+            <div class="bar" style="height:4px"><i id="strengthBar" style="width:0%"></i></div>
+            <p class="sub" style="font-size:12px;margin-top:5px" id="strengthText">At least 8 characters, with a letter and a number.</p>
+          </div>
+        </div>
+
+        <div class="field hidden" id="roleField">
+          <label>Account type</label>
+          <select id="regRole" onchange="paintRoleHint()">
+            <option value="student">Student — track my own studies</option>
+            <option value="parent">Parent or guardian — follow my child's progress</option>
+          </select>
+          <p class="sub" style="font-size:12px;margin-top:5px" id="roleHint"></p>
+        </div>
+
+        <div class="field hidden" id="referralField">
+          <label>Referral code <span style="font-weight:400">(optional)</span></label>
+          <input id="regReferral" placeholder="ABCD2345" style="text-transform:uppercase" />
+        </div>
+
+        <button class="btn" style="width:100%" id="authBtn" onclick="submitAuth()">Sign in</button>
+        <div class="err" id="authError"></div>
+
+        <p class="sub" style="text-align:center;margin-top:14px">
+          <span id="authSwitchText">Don't have an account?</span>
+          <a href="#" onclick="toggleAuthMode();return false" style="color:var(--accent);font-weight:500;text-decoration:none" id="authSwitchLink">Create one</a>
+        </p>
       </div>
-      <h1 id="authTitle">Sign in</h1>
-      <p class="sub" style="margin:6px 0 20px">Use your college email address.</p>
-      <div class="field hidden" id="nameField">
-        <label>Full name</label><input id="regName" placeholder="Vansh Vijayvargiya" />
-      </div>
-      <div class="field"><label>Email</label><input id="email" type="email" placeholder="you@college.edu" /></div>
-      <div class="field"><label>Password</label><input id="password" type="password" placeholder="••••••••" /></div>
-      <button class="btn" style="width:100%" id="authBtn" onclick="submitAuth()">Sign in</button>
-      <div class="err" id="authError"></div>
-      <p class="sub" style="text-align:center;margin-top:16px">
-        <span id="authSwitchText">Don't have an account?</span>
-        <a href="#" onclick="toggleAuthMode();return false" style="color:var(--accent);font-weight:700;text-decoration:none" id="authSwitchLink">Create an account</a>
-      </p>
-      <div style="margin-top:20px;padding:12px 14px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-md)">
-        <p class="sub" style="font-size:12.5px">Demo account: <b>vansh@studyhub.dev</b> / <b>password123</b></p>
+
+      <!-- shown after registering -->
+      <div id="verifyPanel" class="hidden">
+        <h1>Check your email</h1>
+        <p class="sub" style="margin:8px 0 16px" id="verifyLead"></p>
+        <div class="card" style="background:var(--surface-2);padding:14px 16px">
+          <p class="sub" style="font-size:12.5px">This project has no mail server, so the verification link is written to
+            the server log. In development it also appears below.</p>
+          <div id="devVerify" class="hidden" style="margin-top:10px">
+            <a class="btn sm" id="devVerifyLink" href="#" target="_blank" rel="noopener">Verify my email now</a>
+          </div>
+        </div>
+        <button class="btn ghost" style="width:100%;margin-top:14px" onclick="backToSignIn()">Back to sign in</button>
       </div>
     </div>
   </div>
@@ -280,7 +366,7 @@
         <div class="avatar" id="navAvatar" style="width:36px;height:36px;font-size:14px"></div>
         <div style="min-width:0">
           <div style="font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="navName"></div>
-          <div class="sub" style="font-size:12px">View profile</div>
+          <div class="sub" style="font-size:12px" id="navRole">View profile</div>
         </div>
       </div>
     </div>
@@ -353,37 +439,173 @@ function readFile(file) {
 }
 
 // ===================== auth =====================
-let registering = false;
+let mode = 'signin';          // 'signin' | 'register'
+let socket = null;
+let usernameTimer = null;
+
 function toggleAuthMode() {
-  registering = !registering;
-  $('nameField').classList.toggle('hidden', !registering);
-  $('authTitle').textContent = registering ? 'Create an account' : 'Sign in';
-  $('authBtn').textContent = registering ? 'Create account' : 'Sign in';
-  $('authSwitchText').textContent = registering ? 'Already have an account?' : "Don't have an account?";
-  $('authSwitchLink').textContent = registering ? 'Sign in' : 'Create one';
+  mode = mode === 'signin' ? 'register' : 'signin';
+  const reg = mode === 'register';
+  ['nameField', 'usernameField', 'emailField', 'roleField', 'referralField', 'strengthWrap']
+    .forEach(id => $(id).classList.toggle('hidden', !reg));
+  $('identifierField').classList.toggle('hidden', reg);
+  $('authTitle').textContent = reg ? 'Create an account' : 'Sign in';
+  $('authLead').textContent = reg
+    ? 'Students track their own studies; parents follow a child they are invited by.'
+    : 'Use your username or college email address.';
+  $('authBtn').textContent = reg ? 'Create account' : 'Sign in';
+  $('authSwitchText').textContent = reg ? 'Already have an account?' : "Don't have an account?";
+  $('authSwitchLink').textContent = reg ? 'Sign in' : 'Create one';
+  $('password').setAttribute('autocomplete', reg ? 'new-password' : 'current-password');
   $('authError').textContent = '';
+  if (reg) paintRoleHint();
 }
+
+function paintRoleHint() {
+  $('roleHint').textContent = $('regRole').value === 'parent'
+    ? 'You will need an invite code from your child, generated in their profile.'
+    : 'Full access: courses, notes, flashcards, timer, grades and chat.';
+}
+
+function paintStrength() {
+  const p = $('password').value;
+  let score = 0;
+  if (p.length >= 8) score++;
+  if (p.length >= 12) score++;
+  if (/[a-z]/.test(p) && /[A-Z]/.test(p)) score++;
+  if (/[0-9]/.test(p) && /[^a-zA-Z0-9]/.test(p)) score++;
+  const labels = ['Too short', 'Weak', 'Fair', 'Good', 'Strong'];
+  const colors = ['var(--neg)', 'var(--neg)', 'var(--warn)', 'var(--info)', 'var(--pos)'];
+  $('strengthBar').style.width = `${score * 25}%`;
+  $('strengthBar').style.background = colors[score];
+  $('strengthText').textContent = p ? labels[score] : 'At least 8 characters, with a letter and a number.';
+}
+
+async function checkUsername() {
+  const hint = $('usernameHint');
+  const value = $('regUsername').value.trim().toLowerCase();
+  $('regUsername').value = value;
+  clearTimeout(usernameTimer);
+  if (value.length < 3) {
+    hint.textContent = '3–20 characters: lowercase letters, numbers or underscore.';
+    hint.style.color = 'var(--ink-3)';
+    return;
+  }
+  usernameTimer = setTimeout(async () => {
+    try {
+      const r = await api('/auth/available?username=' + encodeURIComponent(value));
+      hint.textContent = r.reason;
+      hint.style.color = r.available ? 'var(--pos)' : 'var(--neg)';
+    } catch { /* availability is a nicety, not a gate */ }
+  }, 350);
+}
+
 async function submitAuth() {
-  $('authError').textContent = '';
+  const err = $('authError');
+  err.textContent = '';
   try {
-    const body = { email: val('email'), password: $('password').value };
-    if (registering) body.name = val('regName');
-    const data = await api(registering ? '/auth/register' : '/auth/login', { method: 'POST', body: JSON.stringify(body) });
-    token = data.token; me = data.user;
+    if (mode === 'register') {
+      const res = await api('/auth/register', { method: 'POST', body: JSON.stringify({
+        name: val('regName'), username: val('regUsername'), email: val('regEmail'),
+        password: $('password').value, role: $('regRole').value,
+        referralCode: val('regReferral') || undefined,
+      })});
+      $('authForm').classList.add('hidden');
+      $('verifyPanel').classList.remove('hidden');
+      $('verifyLead').textContent = `We sent a verification link to ${res.user.email}. Verify it, then sign in.`;
+      if (res.verifyUrl) {
+        $('devVerify').classList.remove('hidden');
+        $('devVerifyLink').href = res.verifyUrl;
+      }
+      return;
+    }
+
+    const data = await api('/auth/login', { method: 'POST', body: JSON.stringify({
+      identifier: val('identifier'), password: $('password').value,
+    })});
+    token = data.token;
+    me = data.user;
     $('authView').classList.add('hidden');
     $('appView').classList.remove('hidden');
     await refreshMe();
-    go('home');
+    connectSocket();
+    go(me.role === 'parent' ? 'children' : 'home');
+  } catch (e) {
+    err.textContent = e.message;
+    if (/verify/i.test(e.message)) {
+      err.innerHTML = `${esc(e.message)} — <a href="#" style="color:var(--accent)" onclick="resendVerification();return false">resend the link</a>`;
+    }
+  }
+}
+
+async function resendVerification() {
+  try {
+    const r = await api('/auth/resend', { method: 'POST', body: JSON.stringify({ email: val('identifier') }) });
+    $('authError').innerHTML = r.verifyUrl
+      ? `Link re-issued — <a href="${esc(r.verifyUrl)}" style="color:var(--accent)">verify now</a>`
+      : esc(r.message);
   } catch (e) { $('authError').textContent = e.message; }
 }
-function logout() { token = null; me = null; $('appView').classList.add('hidden'); $('authView').classList.remove('hidden'); }
+
+function backToSignIn() {
+  $('verifyPanel').classList.add('hidden');
+  $('authForm').classList.remove('hidden');
+  if (mode === 'register') toggleAuthMode();
+}
+
+function logout() {
+  socket?.disconnect();
+  socket = null;
+  token = null; me = null;
+  $('appView').classList.add('hidden');
+  $('authView').classList.remove('hidden');
+}
+
 $('password').addEventListener('keydown', e => { if (e.key === 'Enter') submitAuth(); });
+
+// ?verified=1 comes back from the emailed link; ?ref= pre-fills a referral code
+(function readUrlFlags() {
+  const params = new URLSearchParams(location.search);
+  const verified = params.get('verified');
+  if (verified) {
+    const el = $('verifiedBanner');
+    el.classList.remove('hidden');
+    if (verified === '1') {
+      el.textContent = 'Email verified. You can sign in now.';
+    } else {
+      el.textContent = 'That verification link is invalid or has already been used.';
+      el.style.background = 'var(--warn-bg)';
+      el.style.borderColor = '#fedf89';
+      el.style.color = 'var(--warn)';
+    }
+  }
+  const ref = params.get('ref');
+  if (ref) {
+    if (mode === 'signin') toggleAuthMode();
+    $('regReferral').value = ref.toUpperCase();
+  }
+})();
 
 async function refreshMe() {
   const p = await api('/profile');
   me = { ...me, ...p };
   $('navName').textContent = p.name;
-  $('navAvatar').outerHTML = avatarHtml(p, 36).replace('class="avatar', 'id="navAvatar" class="avatar');
+  $('navRole').textContent = p.role === 'parent' ? 'Parent account' : 'View profile';
+  $('navAvatar').outerHTML = avatarHtml(p, 34).replace('class="avatar', 'id="navAvatar" class="avatar');
+}
+
+// ===================== realtime =====================
+function connectSocket() {
+  if (me.role !== 'student' || typeof io === 'undefined') return;
+  socket = io({ auth: { token } });
+  socket.on('message', onIncomingMessage);
+  socket.on('presence', ids => { onlineIds = new Set(ids); paintPresence(); });
+  socket.on('typing', ({ from, roomId, isTyping }) => {
+    const relevant = roomId ? roomId === chat.roomId : from === chat.peerId;
+    if (!relevant) return;
+    const el = $('typingLine');
+    if (el) el.textContent = isTyping ? 'typing…' : '';
+  });
 }
 
 // ===================== navigation =====================
@@ -394,16 +616,25 @@ const ICONS = {
   timer: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6"/>',
   todo: '<path d="M9 5h10M9 12h10M9 19h10"/><path d="M4 5l1.5 1.5L8 4M4 12l1.5 1.5L8 11M4 19l1.5 1.5L8 18"/>',
   grades: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+  chat: '<path d="M21 15a2 2 0 01-2 2H8l-5 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>',
+  rooms: '<path d="M23 7l-7 5 7 5z"/><rect x="1" y="5" width="15" height="14" rx="2"/>',
+  refer: '<circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0114 0M19 8v6M22 11h-6"/>',
+  children: '<circle cx="8" cy="9" r="3.2"/><circle cx="17" cy="7" r="2.6"/><path d="M2 20a6 6 0 0112 0M14.5 20a5.5 5.5 0 017.5-5"/>',
   board: '<path d="M8 21h8M12 17v4"/><path d="M7 4h10v5a5 5 0 01-10 0z"/><path d="M17 5h3v2a3 3 0 01-3 3M7 5H4v2a3 3 0 003 3"/>',
   profile: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0116 0"/>',
 };
-const NAV = [
+const NAV_STUDENT = [
   ['home', 'Dashboard'], ['courses', 'Courses'], ['cards', 'Flashcards'],
   ['timer', 'Study timer'], ['todo', 'Deadlines'], ['grades', 'Grades'],
-  ['board', 'Leaderboard'], ['profile', 'Profile'],
+  ['chat', 'Messages'], ['rooms', 'Study rooms'],
+  ['board', 'Leaderboard'], ['refer', 'Refer a friend'], ['profile', 'Profile'],
+];
+const NAV_PARENT = [
+  ['children', 'My children'], ['profile', 'Profile'],
 ];
 function renderNav() {
-  $('nav').innerHTML = NAV.map(([k, label]) => `
+  const nav = me?.role === 'parent' ? NAV_PARENT : NAV_STUDENT;
+  $('nav').innerHTML = nav.map(([k, label]) => `
     <button class="${view === k ? 'on' : ''}" onclick="go('${k}')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${ICONS[k]}</svg>
       <span>${label}</span>
@@ -423,6 +654,12 @@ async function go(v, params = {}) {
     else if (v === 'grades') await renderGrades();
     else if (v === 'board') await renderBoard();
     else if (v === 'search') await renderSearch();
+    else if (v === 'chat') await renderChat();
+    else if (v === 'rooms') await renderRooms();
+    else if (v === 'room') await renderRoom();
+    else if (v === 'refer') await renderReferrals();
+    else if (v === 'children') await renderChildren();
+    else if (v === 'child') await renderChild();
     else if (v === 'profile') await renderProfile();
   } catch (e) {
     $('main').innerHTML = `<div class="card"><h2>Something went wrong</h2><p class="err">${esc(e.message)}</p>
@@ -1177,20 +1414,442 @@ async function renderSearch() {
     ${q.length >= 2 && total === 0 ? `<div class="card">${emptyArt('Nothing matched that search.')}</div>` : ''}`;
 }
 
+// ===================== messages =====================
+let chat = { peerId: null, roomId: null, peer: null };
+let onlineIds = new Set();
+
+const timeOf = d => new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+function bubbleHtml(m) {
+  const mine = m.senderId === me.id;
+  return `<div class="bubble ${mine ? 'me' : ''}">
+    ${mine ? '' : `<div class="who">${esc(m.senderName)}</div>`}
+    ${m.body ? esc(m.body) : ''}
+    ${m.sharedNote ? `<a class="shared" href="#" onclick="openSharedNote('${m.sharedNote.courseId}');return false">
+        Shared note: ${esc(m.sharedNote.title)}</a>` : ''}
+    <div class="at">${timeOf(m.createdAt)}</div>
+  </div>`;
+}
+function openSharedNote(courseId) { go('course', { id: Number(courseId), code: '', title: 'Course' }); }
+
+function paintPresence() {
+  document.querySelectorAll('[data-presence]').forEach(el => {
+    el.classList.toggle('on', onlineIds.has(Number(el.dataset.presence)));
+  });
+}
+
+function onIncomingMessage(m) {
+  const forOpenDm = chat.peerId && m.conversationId &&
+    m.conversationId === `dm:${Math.min(me.id, chat.peerId)}:${Math.max(me.id, chat.peerId)}`;
+  const forOpenRoom = chat.roomId && m.roomId === chat.roomId;
+  if (!forOpenDm && !forOpenRoom) return;
+  const body = $('chatBody');
+  if (!body) return;
+  body.insertAdjacentHTML('beforeend', bubbleHtml(m));
+  body.scrollTop = body.scrollHeight;
+  const t = $('typingLine');
+  if (t) t.textContent = '';
+}
+
+async function renderChat() {
+  const [people, convos] = await Promise.all([api('/chat/people'), api('/chat/conversations')]);
+  const listed = convos.length ? convos.map(c => ({ ...c.user, preview: c.lastMessage, at: c.lastAt }))
+                               : people.slice(0, 12).map(p => ({ ...p, preview: p.sharesCourse ? 'Shares a course with you' : '' }));
+
+  $('main').innerHTML = `
+    <div class="page-head"><div><h1>Messages</h1>
+      <p class="sub">Message classmates directly and share notes with them.</p></div></div>
+    <div class="chat-wrap">
+      <div>
+        <div class="field" style="margin-bottom:10px">
+          <input id="peopleSearch" placeholder="Search people" oninput="searchPeople()" />
+        </div>
+        <div class="chat-list" id="peopleList">
+          ${listed.map(u => chatItem(u)).join('') || emptyArt('No classmates found yet.')}
+        </div>
+      </div>
+      <div id="threadHost">
+        <div class="card" style="height:66vh;display:grid;place-items:center">
+          ${emptyArt('Pick someone on the left to start a conversation.')}
+        </div>
+      </div>
+    </div>`;
+  paintPresence();
+}
+
+function chatItem(u) {
+  return `<div class="chat-item ${chat.peerId === u.id ? 'on' : ''}" onclick="openDm(${u.id})">
+    ${avatarHtml(u, 32)}
+    <div style="flex:1;min-width:0">
+      <div style="font-weight:500;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(u.name)}</div>
+      <div class="sub" style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(u.preview || '@' + u.username)}</div>
+    </div>
+    <span class="dot" data-presence="${u.id}"></span>
+  </div>`;
+}
+
+async function searchPeople() {
+  const people = await api('/chat/people?q=' + encodeURIComponent(val('peopleSearch')));
+  $('peopleList').innerHTML = people.map(u => chatItem({ ...u, preview: u.sharesCourse ? 'Shares a course with you' : '' })).join('')
+    || '<p class="sub" style="padding:14px">Nobody matched that search.</p>';
+  paintPresence();
+}
+
+async function openDm(userId) {
+  chat = { peerId: userId, roomId: null, peer: null };
+  const { user, messages } = await api('/chat/dm/' + userId);
+  chat.peer = user;
+  $('threadHost').innerHTML = `
+    <div class="chat-thread">
+      <div class="chat-head">
+        ${avatarHtml(user, 34)}
+        <div style="flex:1"><div style="font-weight:600">${esc(user.name)}</div>
+          <div class="sub" style="font-size:12px">@${esc(user.username)}</div></div>
+        <span class="dot" data-presence="${user.id}"></span>
+      </div>
+      <div class="chat-body" id="chatBody">${messages.map(bubbleHtml).join('')}</div>
+      <div class="typing" id="typingLine"></div>
+      <div class="chat-foot">
+        <button class="btn ghost sm" onclick="shareNoteModal()">Share note</button>
+        <input id="chatInput" placeholder="Write a message" onkeydown="if(event.key==='Enter')sendMessage()" oninput="signalTyping()" />
+        <button class="btn" onclick="sendMessage()">Send</button>
+      </div>
+    </div>`;
+  const body = $('chatBody');
+  body.scrollTop = body.scrollHeight;
+  paintPresence();
+  document.querySelectorAll('.chat-item').forEach(el => el.classList.remove('on'));
+}
+
+let typingTimer = null;
+function signalTyping() {
+  if (!socket) return;
+  const target = chat.roomId ? { roomId: chat.roomId } : { toUserId: chat.peerId };
+  socket.emit('typing', { ...target, isTyping: true });
+  clearTimeout(typingTimer);
+  typingTimer = setTimeout(() => socket.emit('typing', { ...target, isTyping: false }), 1200);
+}
+
+async function sendMessage(noteId) {
+  const input = $('chatInput');
+  const body = input ? input.value.trim() : '';
+  if (!body && !noteId) return;
+  if (input) input.value = '';
+
+  const payload = { body, noteId };
+  try {
+    if (socket) {
+      const event = chat.roomId ? 'room:send' : 'dm:send';
+      const target = chat.roomId ? { roomId: chat.roomId } : { toUserId: chat.peerId };
+      socket.emit(event, { ...target, ...payload }, res => {
+        if (res && !res.ok) alert(res.error);
+        else if (res?.message && chat.roomId) { /* room echo arrives via broadcast */ }
+      });
+    } else {
+      // socket unavailable: fall back to REST so messaging still works
+      const path = chat.roomId ? `/chat/rooms/${chat.roomId}/messages` : `/chat/dm/${chat.peerId}`;
+      const m = await api(path, { method: 'POST', body: JSON.stringify(payload) });
+      onIncomingMessage(m);
+    }
+  } catch (e) { alert(e.message); }
+}
+
+async function shareNoteModal() {
+  const notes = await api('/notes');
+  const mine = notes.filter(n => n.authorId === me.id);
+  const list = (mine.length ? mine : notes).slice(0, 40);
+  modal(`<h2>Share a note</h2>
+    <p class="sub" style="margin:4px 0 14px">The recipient gets a link to the note's course.</p>
+    ${list.length ? list.map(n => `<div class="todo">
+        <div style="flex:1"><div style="font-weight:500">${esc(n.title)}</div>
+          <div class="sub" style="font-size:12px">by ${esc(n.authorName)}</div></div>
+        <button class="btn sm" onclick="closeModal();sendMessage('${n._id}')">Share</button>
+      </div>`).join('') : '<p class="sub">No notes available to share yet.</p>'}
+    <div class="row" style="justify-content:flex-end;margin-top:14px">
+      <button class="btn ghost" onclick="closeModal()">Cancel</button></div>`);
+}
+
+// ===================== study rooms =====================
+async function renderRooms() {
+  const [rooms, dash] = await Promise.all([api('/chat/rooms'), api('/dashboard')]);
+  $('main').innerHTML = `
+    <div class="page-head"><div><h1>Study rooms</h1>
+      <p class="sub">Group sessions with live chat and video. Anyone with the room open can join the call.</p></div>
+      <button class="btn" onclick="roomModal(${JSON.stringify(dash.map(c => ({ id: c.id, code: c.code }))).replace(/"/g, '&quot;')})">Create room</button></div>
+    <div class="grid g-3">
+      ${rooms.map(r => `<div class="course" onclick="go('room',{roomId:'${r._id}'})">
+        <div class="cover" style="background:${coverFor(r.courseId || 1)}"></div>
+        <div class="body">
+          <div class="spread" style="margin-bottom:8px">
+            <h3>${esc(r.title)}</h3>
+            ${r.isHost ? '<span class="pill p-lav">Host</span>' : r.isMember ? '<span class="pill p-mint">Joined</span>' : ''}
+          </div>
+          <p class="sub" style="font-size:12.5px">${esc(r.topic || 'No topic set')}</p>
+          <p class="sub" style="font-size:12px;margin-top:8px">${r.memberCount} member${r.memberCount === 1 ? '' : 's'} · hosted by ${esc(r.hostName)}</p>
+          ${r.scheduledFor ? `<p class="sub" style="font-size:12px">Scheduled for ${fmtDate(r.scheduledFor)}</p>` : ''}
+        </div></div>`).join('') || emptyArt('No open rooms. Create one and invite your classmates.')}
+    </div>`;
+}
+
+function roomModal(courses) {
+  modal(`<h2>Create a study room</h2>
+    <p class="sub" style="margin:4px 0 16px">A video call and a group chat, open to anyone who joins.</p>
+    <div class="field"><label>Room name</label><input id="rTitle" placeholder="DBMS revision — normalization" /></div>
+    <div class="field"><label>Topic</label><input id="rTopic" placeholder="What are you covering?" /></div>
+    <div class="field"><label>Course (optional)</label>
+      <select id="rCourse"><option value="">Not course-specific</option>
+        ${(courses || []).map(c => `<option value="${c.id}">${esc(c.code)}</option>`).join('')}</select></div>
+    <div class="field"><label>Scheduled for (optional)</label><input id="rWhen" type="datetime-local" /></div>
+    <div class="err" id="rErr"></div>
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn" onclick="createRoom()">Create room</button></div>`);
+}
+
+async function createRoom() {
+  try {
+    if (!val('rTitle')) { $('rErr').textContent = 'Give the room a name.'; return; }
+    const room = await api('/chat/rooms', { method: 'POST', body: JSON.stringify({
+      title: val('rTitle'), topic: val('rTopic'),
+      courseId: $('rCourse').value || undefined,
+      scheduledFor: val('rWhen') || undefined,
+    })});
+    closeModal();
+    go('room', { roomId: room._id });
+  } catch (e) { $('rErr').textContent = e.message; }
+}
+
+async function renderRoom() {
+  const room = await api('/chat/rooms/' + ctx.roomId);
+  chat = { peerId: null, roomId: String(room._id), peer: null };
+  if (socket) socket.emit('room:join', chat.roomId, () => {});
+
+  $('main').innerHTML = `
+    <button class="btn ghost sm" onclick="leaveRoom()">← Study rooms</button>
+    <div class="spread" style="margin:12px 0 14px">
+      <div><h1>${esc(room.title)}</h1>
+        <p class="sub">${esc(room.topic || 'No topic set')} · hosted by ${esc(room.hostName)}</p></div>
+      <div class="row">
+        ${room.members.slice(0, 6).map(m => avatarHtml(m, 28)).join('')}
+        ${room.members.length > 6 ? `<span class="sub">+${room.members.length - 6}</span>` : ''}
+        ${room.hostId === me.id ? `<button class="btn ghost sm" onclick="closeRoom('${room._id}')">Close room</button>` : ''}
+      </div>
+    </div>
+    <div class="chat-wrap" style="grid-template-columns:1.5fr 1fr">
+      <div>
+        <iframe class="video-frame" allow="camera; microphone; fullscreen; display-capture; autoplay"
+          src="https://meet.jit.si/${esc(room.videoRoom)}#userInfo.displayName=%22${encodeURIComponent(me.name)}%22"></iframe>
+        <p class="sub" style="font-size:12px;margin-top:8px">Video runs on the public Jitsi service — no account needed. Allow camera and microphone when prompted.</p>
+      </div>
+      <div class="chat-thread" style="height:520px">
+        <div class="chat-head"><div style="flex:1;font-weight:600">Room chat</div>
+          <span class="sub" style="font-size:12px">${room.members.length} in room</span></div>
+        <div class="chat-body" id="chatBody">${room.messages.map(bubbleHtml).join('')}</div>
+        <div class="typing" id="typingLine"></div>
+        <div class="chat-foot">
+          <button class="btn ghost sm" onclick="shareNoteModal()">Note</button>
+          <input id="chatInput" placeholder="Message the room" onkeydown="if(event.key==='Enter')sendMessage()" oninput="signalTyping()" />
+          <button class="btn" onclick="sendMessage()">Send</button>
+        </div>
+      </div>
+    </div>`;
+  const body = $('chatBody');
+  body.scrollTop = body.scrollHeight;
+}
+
+function leaveRoom() {
+  if (socket && chat.roomId) socket.emit('room:leave', chat.roomId);
+  chat = { peerId: null, roomId: null, peer: null };
+  go('rooms');
+}
+async function closeRoom(id) {
+  await api('/chat/rooms/' + id, { method: 'DELETE' });
+  leaveRoom();
+}
+
+// ===================== referrals =====================
+async function renderReferrals() {
+  const r = await api('/referrals');
+  $('main').innerHTML = `
+    <div class="page-head"><div><h1>Refer a friend</h1>
+      <p class="sub">Share your code — you'll see who joins with it.</p></div></div>
+
+    <div class="grid g-2">
+      <div class="card">
+        <h2 style="margin-bottom:12px">Your invite code</h2>
+        <div style="font-family:ui-monospace,Menlo,monospace;font-size:30px;font-weight:600;letter-spacing:.08em;
+             padding:16px;background:var(--surface-2);border:1px dashed var(--border-2);border-radius:var(--r-md);text-align:center">
+          ${esc(r.code || '—')}
+        </div>
+        <div class="field" style="margin-top:14px"><label>Invite link</label>
+          <input id="refLink" readonly value="${esc(r.link)}" onclick="this.select()" /></div>
+        <div class="row">
+          <button class="btn" onclick="copyText('${esc(r.link)}', this)">Copy link</button>
+          <button class="btn ghost" onclick="copyText('${esc(r.code || '')}', this)">Copy code</button>
+        </div>
+        ${r.invitedBy ? `<p class="sub" style="margin-top:14px">You joined via ${esc(r.invitedBy.name)} (@${esc(r.invitedBy.username)}).</p>` : ''}
+      </div>
+
+      <div>
+        <div class="grid" style="grid-template-columns:1fr 1fr;gap:14px">
+          <div class="stat s-lav"><div class="n">${r.total}</div><div class="l">people joined</div></div>
+          <div class="stat s-mint"><div class="n">${r.verifiedTotal}</div><div class="l">verified accounts</div></div>
+        </div>
+        <div class="card" style="margin-top:14px">
+          <h2 style="margin-bottom:10px">Who joined</h2>
+          ${r.joined.length ? `<table><thead><tr><th>Name</th><th>Type</th><th>Status</th><th>Joined</th></tr></thead><tbody>
+            ${r.joined.map(j => `<tr>
+              <td><div class="row" style="gap:8px;flex-wrap:nowrap">${avatarHtml(j, 26)}
+                <span style="font-weight:500">${esc(j.name)}</span></div></td>
+              <td class="sub">${j.role === 'parent' ? 'Parent' : 'Student'}</td>
+              <td><span class="pill ${j.verified ? 'p-mint' : 'p-peach'}">${j.verified ? 'Verified' : 'Pending'}</span></td>
+              <td class="sub">${fmtDate(j.joinedAt)}</td></tr>`).join('')}
+          </tbody></table>` : '<p class="sub">Nobody has used your code yet.</p>'}
+        </div>
+      </div>
+    </div>`;
+}
+
+function copyText(text, btn) {
+  navigator.clipboard?.writeText(text).then(() => {
+    const original = btn.textContent;
+    btn.textContent = 'Copied';
+    setTimeout(() => { btn.textContent = original; }, 1400);
+  });
+}
+
+// ===================== parent view =====================
+async function renderChildren() {
+  const children = await api('/parents/children');
+  $('main').innerHTML = `
+    <div class="page-head"><div><h1>My children</h1>
+      <p class="sub">Read-only summaries. You can see progress, not their notes or messages.</p></div>
+      <button class="btn" onclick="linkChildModal()">Link a student</button></div>
+
+    ${children.length ? `<div class="grid g-3">${children.map(c => `
+      <div class="course" onclick="go('child',{id:${c.id}})">
+        <div class="cover" style="background:${coverFor(c.id)}"></div>
+        <div class="body">
+          <div class="row" style="gap:10px;flex-wrap:nowrap;margin-bottom:12px">
+            ${avatarHtml(c, 40)}
+            <div style="min-width:0"><h3>${esc(c.name)}</h3>
+              <p class="sub" style="font-size:12px">@${esc(c.username)}</p></div>
+          </div>
+          <div class="bar"><i style="width:${c.stats.progressPct}%"></i></div>
+          <div class="spread" style="margin-top:10px">
+            <span class="sub" style="font-size:12.5px">${c.stats.progressPct}% of topics</span>
+            <span class="row" style="gap:4px">
+              <span class="pill p-sky">${fmtMin(c.stats.weekMinutes)} this week</span>
+              ${c.stats.overdue ? `<span class="pill p-rose">${c.stats.overdue} overdue</span>` : ''}
+            </span>
+          </div>
+        </div></div>`).join('')}</div>`
+    : `<div class="card">${emptyArt('No students linked yet.')}
+        <p class="sub" style="text-align:center">Ask your child to generate an invite code in their profile, then enter it here.</p>
+        <div class="row" style="justify-content:center;margin-top:14px"><button class="btn" onclick="linkChildModal()">Enter invite code</button></div>
+      </div>`}`;
+}
+
+function linkChildModal() {
+  modal(`<h2>Link a student</h2>
+    <p class="sub" style="margin:6px 0 16px">Your child generates a code in <b>Profile → Guardian access</b>.
+      Codes are single-use and expire after 72 hours.</p>
+    <div class="field"><label>Invite code</label>
+      <input id="linkCode" placeholder="ABCD2345" style="text-transform:uppercase;font-family:ui-monospace,monospace;letter-spacing:.1em" /></div>
+    <div class="err" id="linkErr"></div>
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn" onclick="linkChild()">Link</button></div>`);
+}
+async function linkChild() {
+  try {
+    await api('/parents/link', { method: 'POST', body: JSON.stringify({ code: val('linkCode').toUpperCase() }) });
+    closeModal();
+    go('children');
+  } catch (e) { $('linkErr').textContent = e.message; }
+}
+
+async function renderChild() {
+  const d = await api('/parents/children/' + ctx.id);
+  $('main').innerHTML = `
+    <button class="btn ghost sm" onclick="go('children')">← My children</button>
+    <div class="card" style="margin-top:12px">
+      <div class="row" style="gap:16px;flex-wrap:nowrap">
+        ${avatarHtml(d.student, 56)}
+        <div style="flex:1"><h1>${esc(d.student.name)}</h1>
+          <p class="sub">@${esc(d.student.username)}${d.student.college ? ' · ' + esc(d.student.college) : ''}</p></div>
+        <button class="btn ghost sm" onclick="unlinkChild(${d.student.id})">Unlink</button>
+      </div>
+    </div>
+
+    <div class="grid g-4" style="margin-top:14px">
+      <div class="stat s-lav"><div class="n">${d.stats.streak}</div><div class="l">day streak</div></div>
+      <div class="stat s-mint"><div class="n">${fmtMin(d.stats.weekMinutes)}</div><div class="l">studied this week</div></div>
+      <div class="stat s-sky"><div class="n">${d.stats.progressPct}%</div><div class="l">topics complete</div></div>
+      <div class="stat s-peach"><div class="n">${d.stats.overdue}</div><div class="l">overdue tasks</div></div>
+    </div>
+
+    <div class="grid g-2" style="margin-top:14px">
+      <div class="card"><h2 style="margin-bottom:14px">Study time, last 7 days</h2>
+        <div class="spark">${last7Bars(d.stats.last7)}</div></div>
+      <div class="card"><h2 style="margin-bottom:10px">Upcoming deadlines</h2>
+        ${d.assignments.length ? d.assignments.slice(0, 6).map(a => `<div class="todo">
+            <span class="pill ${a.days_left < 0 ? 'p-rose' : a.days_left <= 2 ? 'p-peach' : 'p-sky'}" style="min-width:74px;justify-content:center">
+              ${a.days_left < 0 ? 'Overdue' : a.days_left === 0 ? 'Today' : a.days_left + ' days'}</span>
+            <div style="flex:1"><div style="font-weight:500">${esc(a.title)}</div>
+              <div class="sub" style="font-size:12px">${esc(a.course_code)} · ${fmtDate(a.due_date)}</div></div>
+          </div>`).join('') : '<p class="sub">Nothing pending.</p>'}
+      </div>
+    </div>
+
+    <div class="card"><h2 style="margin-bottom:12px">Courses</h2>
+      ${d.courses.length ? `<table><thead><tr><th>Course</th><th>Topics</th><th class="num">Progress</th></tr></thead><tbody>
+        ${d.courses.map(c => `<tr><td><span class="code-tag">${esc(c.code)}</span> ${esc(c.title)}</td>
+          <td class="sub">${c.completedTopics} of ${c.totalTopics}</td>
+          <td class="num" style="width:180px"><div class="row" style="gap:8px;flex-wrap:nowrap">
+            <div class="bar" style="flex:1"><i style="width:${c.progressPct}%"></i></div>
+            <span style="font-weight:600;min-width:38px">${c.progressPct}%</span></div></td></tr>`).join('')}
+      </tbody></table>` : '<p class="sub">Not enrolled in any courses yet.</p>'}
+    </div>
+
+    ${d.grades.length ? `<div class="card"><h2 style="margin-bottom:12px">Grades</h2>
+      <table><thead><tr><th>Course</th><th class="num">Assessments</th><th class="num">Average</th><th class="num">Grade</th></tr></thead><tbody>
+        ${d.grades.map(g => `<tr><td><span class="code-tag">${esc(g.code)}</span> ${esc(g.title)}</td>
+          <td class="num">${g.count}</td><td class="num">${g.average}%</td>
+          <td class="num"><span class="pill ${g.average >= 70 ? 'p-mint' : g.average >= 50 ? 'p-sky' : 'p-peach'}">${esc(g.grade)}</span></td></tr>`).join('')}
+      </tbody></table></div>` : ''}`;
+}
+
+async function unlinkChild(id) {
+  if (!confirm('Remove your access to this student?')) return;
+  await api('/parents/children/' + id, { method: 'DELETE' });
+  go('children');
+}
+
 // ===================== profile =====================
 async function renderProfile() {
   const p = await api('/profile');
-  const s = p.stats;
+  const s = p.stats || {};
+  const isParent = p.role === 'parent';
+  const guardians = isParent ? null : await api('/profile/guardians').catch(() => ({ guardians: [], invites: [] }));
+
   $('main').innerHTML = `
-    <div class="page-head"><div><h1>Profile</h1><p class="sub">Your details and everything you've built so far.</p></div>
+    <div class="page-head"><div><h1>Profile</h1>
+      <p class="sub">Your account details${isParent ? '' : ', guardian access and study record'}.</p></div>
       <button class="btn ghost" onclick="logout()">Sign out</button></div>
 
     <div class="card">
       <div class="row" style="gap:18px;flex-wrap:nowrap;align-items:flex-start">
-        ${avatarHtml(p, 72)}
+        <div style="position:relative;cursor:zoom-in" onclick="zoomAvatar()" title="Click to enlarge">
+          ${avatarHtml(p, 72)}
+        </div>
         <div style="flex:1;min-width:200px">
-          <h1>${esc(p.name)}</h1>
-          <p class="sub" style="margin-top:2px">${esc(p.email)}${p.college ? ' · ' + esc(p.college) : ''}</p>
+          <div class="row" style="gap:8px">
+            <h1>${esc(p.name)}</h1>
+            <span class="pill ${isParent ? 'p-sky' : 'p-lav'}">${isParent ? 'Parent' : 'Student'}</span>
+            <span class="pill ${p.email_verified ? 'p-mint' : 'p-peach'}">${p.email_verified ? 'Verified' : 'Unverified'}</span>
+          </div>
+          <p class="sub" style="margin-top:3px">@${esc(p.username)} · ${esc(p.email)}${p.college ? ' · ' + esc(p.college) : ''}</p>
           ${p.bio ? `<p style="margin-top:10px;max-width:560px;color:var(--ink-2)">${esc(p.bio)}</p>`
                   : '<p class="sub" style="margin-top:10px">No bio added yet.</p>'}
           <p class="sub" style="font-size:12px;margin-top:10px">Member since ${fmtDate(p.created_at)}</p>
@@ -1198,54 +1857,197 @@ async function renderProfile() {
       </div>
     </div>
 
-    <div class="grid g-4" style="margin-top:18px">
-      <div class="stat s-lav"><div class="n">${s.courses}</div><div class="l">courses</div></div>
-      <div class="stat s-mint"><div class="n">${s.topicsDone}/${s.topicsTotal}</div><div class="l">topics completed</div></div>
-      <div class="stat s-sky"><div class="n">${fmtMin(s.totalMinutes)}</div><div class="l">total study time</div></div>
-      <div class="stat s-peach"><div class="n">${s.notesShared}</div><div class="l">notes shared</div></div>
-      <div class="stat s-lav"><div class="n">${s.decksBuilt}</div><div class="l">decks built</div></div>
-      <div class="stat s-peach"><div class="n">${s.openAssignments}</div><div class="l">open deadlines</div></div>
-    </div>
+    ${isParent ? `<div class="grid g-4" style="margin-top:14px">
+        <div class="stat s-lav"><div class="n">${s.children || 0}</div><div class="l">linked students</div></div>
+      </div>`
+    : `<div class="grid g-4" style="margin-top:14px">
+        <div class="stat s-lav"><div class="n">${s.courses}</div><div class="l">courses</div></div>
+        <div class="stat s-mint"><div class="n">${s.topicsDone}/${s.topicsTotal}</div><div class="l">topics completed</div></div>
+        <div class="stat s-sky"><div class="n">${fmtMin(s.totalMinutes)}</div><div class="l">total study time</div></div>
+        <div class="stat s-peach"><div class="n">${s.notesShared}</div><div class="l">notes shared</div></div>
+        <div class="stat s-lav"><div class="n">${s.decksBuilt}</div><div class="l">decks built</div></div>
+        <div class="stat s-sky"><div class="n">${s.referrals}</div><div class="l">friends referred</div></div>
+      </div>`}
 
-    <div class="grid g-2" style="margin-top:18px">
+    <div class="grid g-2" style="margin-top:14px">
       <div class="card">
         <h2 style="margin-bottom:16px">Edit details</h2>
-        <div class="row" style="margin-bottom:16px">
-          ${avatarHtml(p, 64, 'pAv')}
-          <div><input type="file" id="pAvatar" accept="image/*" style="max-width:230px" />
-            <p class="sub" style="font-size:12px;margin-top:5px">JPG or PNG, up to 3 MB</p></div>
+        <div class="row" style="margin-bottom:16px;gap:14px;flex-wrap:nowrap">
+          ${avatarHtml(p, 60)}
+          <div>
+            <input type="file" id="pAvatar" accept="image/*" style="max-width:230px" onchange="openCropper(event)" />
+            <p class="sub" style="font-size:12px;margin-top:5px">JPG or PNG. You can zoom and reposition before saving.</p>
+          </div>
         </div>
-        <div class="field"><label>Name</label><input id="pName" value="${esc(p.name)}" /></div>
+        <div class="field"><label>Full name</label><input id="pName" value="${esc(p.name)}" /></div>
+        <div class="field"><label>Username</label>
+          <input value="${esc(p.username)}" disabled style="background:var(--surface-2);color:var(--ink-3)" />
+          <p class="sub" style="font-size:12px;margin-top:5px">Usernames are permanent.</p></div>
         <div class="field"><label>College</label><input id="pCollege" value="${esc(p.college || '')}" placeholder="K. J. Somaiya School of Engineering" /></div>
-        <div class="field"><label>Bio</label><textarea id="pBio" style="min-height:80px" placeholder="Final-year IT student, into databases and backend.">${esc(p.bio || '')}</textarea></div>
-        <div class="field"><label>Daily study goal (minutes)</label><input id="pGoal" type="number" min="10" max="600" value="${p.daily_goal_minutes}" /></div>
+        <div class="field"><label>Bio</label><textarea id="pBio" style="min-height:76px" placeholder="Final-year IT student, into databases and backend.">${esc(p.bio || '')}</textarea></div>
+        ${isParent ? '' : `<div class="field"><label>Daily study goal (minutes)</label>
+          <input id="pGoal" type="number" min="10" max="600" value="${p.daily_goal_minutes}" /></div>`}
         <button class="btn" onclick="saveProfile()">Save changes</button>
         <div class="ok" id="pMsg"></div>
       </div>
 
-      <div class="card">
-        <h2 style="margin-bottom:16px">Change password</h2>
-        <div class="field"><label>Current password</label><input id="pwCur" type="password" /></div>
-        <div class="field"><label>New password</label><input id="pwNew" type="password" placeholder="At least 8 characters" /></div>
-        <button class="btn soft" onclick="changePassword()">Update password</button>
-        <div class="ok" id="pwMsg"></div>
+      <div>
+        <div class="card">
+          <h2 style="margin-bottom:16px">Change password</h2>
+          <div class="field"><label>Current password</label><input id="pwCur" type="password" autocomplete="current-password" /></div>
+          <div class="field"><label>New password</label>
+            <input id="pwNew" type="password" autocomplete="new-password" placeholder="8+ characters, a letter and a number" /></div>
+          <button class="btn soft" onclick="changePassword()">Update password</button>
+          <div class="ok" id="pwMsg"></div>
+        </div>
+
+        ${isParent ? '' : `<div class="card">
+          <div class="spread" style="margin-bottom:6px"><h2>Guardian access</h2>
+            <button class="btn ghost sm" onclick="newInvite()">Generate code</button></div>
+          <p class="sub" style="font-size:12.5px;margin-bottom:12px">
+            Give a code to a parent so they can follow your progress. They see summaries only —
+            never your notes, messages or grades detail. Codes expire after 72 hours and work once.</p>
+
+          ${guardians.invites.length ? `<div style="margin-bottom:12px">
+            ${guardians.invites.map(i => `<div class="todo">
+              <code style="font-family:ui-monospace,monospace;font-size:15px;font-weight:600;letter-spacing:.1em">${esc(i.code)}</code>
+              <div style="flex:1"></div>
+              <span class="sub" style="font-size:12px">expires ${fmtDate(i.expires_at)}</span>
+              <button class="btn ghost sm" onclick="copyText('${esc(i.code)}', this)">Copy</button>
+            </div>`).join('')}</div>` : ''}
+
+          ${guardians.guardians.length ? guardians.guardians.map(g => `<div class="todo">
+              <div style="flex:1"><div style="font-weight:500">${esc(g.name)}</div>
+                <div class="sub" style="font-size:12px">${esc(g.email)} · linked ${fmtDate(g.created_at)}</div></div>
+              <button class="btn ghost sm" onclick="revokeGuardian(${g.id})">Revoke</button>
+            </div>`).join('') : '<p class="sub">No parent accounts are linked to you.</p>'}
+        </div>`}
       </div>
     </div>`;
 }
+
+// ---- avatar zoom (view) ----
+function zoomAvatar() {
+  const src = me.avatar;
+  if (!src) { alert('No profile picture uploaded yet.'); return; }
+  modal(`<div class="spread" style="margin-bottom:12px"><h2>Profile picture</h2>
+      <button class="btn ghost sm" onclick="closeModal()">Close</button></div>
+    <div class="zoom-view"><img id="zoomImg" src="${esc(src)}" style="transform:scale(1)" alt="Profile picture" /></div>
+    <div class="row" style="margin-top:14px;gap:12px;flex-wrap:nowrap">
+      <span class="sub">Zoom</span>
+      <input type="range" min="100" max="400" value="100" style="flex:1"
+             oninput="$('zoomImg').style.transform='scale('+(this.value/100)+')'" />
+    </div>`);
+}
+
+// ---- avatar crop (upload) ----
+let crop = { img: null, zoom: 1, x: 0, y: 0, base: 1, dragging: false, lastX: 0, lastY: 0 };
+const CROP_VIEW = 240;
+
+function openCropper(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      crop.img = img;
+      crop.base = CROP_VIEW / Math.min(img.width, img.height);   // "cover" the circle
+      crop.zoom = 1;
+      crop.x = (CROP_VIEW - img.width * crop.base) / 2;
+      crop.y = (CROP_VIEW - img.height * crop.base) / 2;
+      showCropper();
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function showCropper() {
+  modal(`<h2>Position your picture</h2>
+    <p class="sub" style="margin:4px 0 16px">Drag to move, slide to zoom. The circle is what people will see.</p>
+    <div class="crop-view" id="cropView"
+         onmousedown="cropStart(event)" onmousemove="cropMove(event)"
+         onmouseup="cropEnd()" onmouseleave="cropEnd()">
+      <img id="cropImg" src="${crop.img.src}" alt="" />
+    </div>
+    <div class="row" style="margin:16px 0 4px;gap:12px;flex-wrap:nowrap">
+      <span class="sub">Zoom</span>
+      <input type="range" id="cropZoom" min="100" max="300" value="100" style="flex:1" oninput="cropSetZoom(this.value)" />
+    </div>
+    <div class="row" style="justify-content:flex-end;margin-top:12px">
+      <button class="btn ghost" onclick="cancelCrop()">Cancel</button>
+      <button class="btn" onclick="applyCrop()">Use this picture</button></div>`);
+  paintCrop();
+}
+
+function paintCrop() {
+  const img = $('cropImg');
+  if (!img) return;
+  const scale = crop.base * crop.zoom;
+  img.style.width = `${crop.img.width * scale}px`;
+  img.style.height = `${crop.img.height * scale}px`;
+  img.style.left = `${crop.x}px`;
+  img.style.top = `${crop.y}px`;
+}
+
+function clampCrop() {
+  const scale = crop.base * crop.zoom;
+  const w = crop.img.width * scale, h = crop.img.height * scale;
+  crop.x = Math.min(0, Math.max(CROP_VIEW - w, crop.x));
+  crop.y = Math.min(0, Math.max(CROP_VIEW - h, crop.y));
+}
+
+function cropSetZoom(value) {
+  const previous = crop.zoom;
+  crop.zoom = Number(value) / 100;
+  // keep the centre of the circle steady while zooming
+  const factor = crop.zoom / previous;
+  crop.x = CROP_VIEW / 2 - (CROP_VIEW / 2 - crop.x) * factor;
+  crop.y = CROP_VIEW / 2 - (CROP_VIEW / 2 - crop.y) * factor;
+  clampCrop();
+  paintCrop();
+}
+function cropStart(e) { crop.dragging = true; crop.lastX = e.clientX; crop.lastY = e.clientY; $('cropView').classList.add('dragging'); }
+function cropMove(e) {
+  if (!crop.dragging) return;
+  crop.x += e.clientX - crop.lastX;
+  crop.y += e.clientY - crop.lastY;
+  crop.lastX = e.clientX; crop.lastY = e.clientY;
+  clampCrop(); paintCrop();
+}
+function cropEnd() { crop.dragging = false; $('cropView')?.classList.remove('dragging'); }
+function cancelCrop() { $('pAvatar').value = ''; closeModal(); }
+
+function applyCrop() {
+  const out = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = out; canvas.height = out;
+  const ctx = canvas.getContext('2d');
+  const scale = crop.base * crop.zoom * (out / CROP_VIEW);
+  ctx.drawImage(crop.img, crop.x * (out / CROP_VIEW), crop.y * (out / CROP_VIEW),
+                crop.img.width * scale, crop.img.height * scale);
+  crop.result = canvas.toDataURL('image/jpeg', 0.9);
+  closeModal();
+  $('pMsg').textContent = 'Picture ready — press Save changes to apply.';
+}
+
 async function saveProfile() {
-  $('pMsg').textContent = '';
+  const msg = $('pMsg');
+  msg.className = 'ok'; msg.textContent = '';
   try {
-    const file = $('pAvatar').files?.[0];
-    const avatar = file ? (await readFile(file)).dataUrl : undefined;
     await api('/profile', { method: 'PUT', body: JSON.stringify({
       name: val('pName'), college: val('pCollege'), bio: val('pBio'),
-      dailyGoalMinutes: $('pGoal').value, avatar,
+      dailyGoalMinutes: $('pGoal') ? $('pGoal').value : 60,
+      avatar: crop.result,
     })});
+    crop.result = null;
     await refreshMe();
-    $('pMsg').textContent = 'Saved.';
+    msg.textContent = 'Saved.';
     setTimeout(() => go('profile'), 500);
-  } catch (e) { $('pMsg').textContent = e.message; $('pMsg').className = 'err'; }
+  } catch (e) { msg.className = 'err'; msg.textContent = e.message; }
 }
+
 async function changePassword() {
   const el = $('pwMsg'); el.className = 'ok'; el.textContent = '';
   try {
@@ -1255,6 +2057,18 @@ async function changePassword() {
     el.textContent = 'Password updated.';
     $('pwCur').value = ''; $('pwNew').value = '';
   } catch (e) { el.className = 'err'; el.textContent = e.message; }
+}
+
+async function newInvite() {
+  try {
+    await api('/profile/guardians/invite', { method: 'POST' });
+    go('profile');
+  } catch (e) { alert(e.message); }
+}
+async function revokeGuardian(parentId) {
+  if (!confirm('Revoke this parent\'s access to your progress?')) return;
+  await api('/profile/guardians/' + parentId, { method: 'DELETE' });
+  go('profile');
 }
 </script>
 </body>

@@ -1,45 +1,59 @@
 # Deploying StudyHub
 
-StudyHub is an Express server with **two** databases (MySQL + MongoDB) and **file
-uploads written to disk**. That combination rules out serverless hosts — Vercel and
-Netlify give you no long-lived process, no persistent disk, and they rebuild the
-MySQL connection pool on every invocation until the database runs out of connections.
+**Live: https://studyhub-production-2c7b.up.railway.app** — Railway, deployed from `main`.
 
-These instructions target **Railway**, which provisions MySQL and MongoDB as managed
-services in the same project and supports the volume the uploads need.
+StudyHub is a long-running Express server with two databases and WebSocket traffic.
+That rules out serverless hosts: Vercel and Netlify give you no persistent process,
+and they rebuild the MySQL pool on every invocation until the database runs out of
+connections. Railway provisions both databases in the same project and keeps the
+process alive, so it fits.
+
+---
+
+## Shipping an update (the normal case)
+
+```bash
+git add .
+git commit -m "what changed"
+git push
+```
+
+Railway builds, health-checks `/api/health`, and keeps the old container serving
+traffic until the new one passes. Schema changes ride along: `initDb` adds new
+tables, columns and indexes at boot and skips anything already applied, so a
+deploy never needs a manual migration step.
+
+A healthy boot looks like this in **Deployments → Logs**:
+
+```json
+{"level":"info","msg":"MySQL connected"}
+{"level":"info","msg":"MongoDB connected"}
+{"level":"info","msg":"schema migration applied","column":"users.username"}
+{"level":"info","msg":"backfilled accounts","rows":2}
+{"level":"info","msg":"StudyHub listening on port 3000","env":"production"}
+```
 
 ---
 
 ## One-time setup
 
-### 1. Create the project and deploy from GitHub
+### 1. Create the project
 
-1. Sign in at [railway.app](https://railway.app) with your GitHub account.
+1. Sign in at [railway.app](https://railway.app) with GitHub.
 2. **New Project → Deploy from GitHub repo → `vanshvj01/studyhub`.**
-3. Railway detects Node from `package.json` and reads `railway.json` for the start
-   command and the `/api/health` healthcheck. The first build **will fail** — the
-   database variables don't exist yet. That's expected; keep going.
+3. Railway builds from the `Dockerfile` and reads `railway.json` for the start
+   command and healthcheck. The first build **will fail** — the database variables
+   don't exist yet. That's expected.
 
 ### 2. Add the databases
 
-In the same project canvas: **New → Database → Add MySQL**, then again for **MongoDB**.
+On the project canvas: **New → Database → Add MySQL**, then again for **MongoDB**.
+Both join the project's private network, so the app reaches them over internal DNS
+with no public egress and no TLS setup.
 
-Both land in the project's private network, so the app talks to them over internal
-DNS. No public egress, no TLS setup needed.
+### 3. Set the environment variables
 
-### 3. Add the uploads volume
-
-This is the step that's easy to skip and painful to discover later. Without it every
-`git push` wipes every attachment and avatar your users have uploaded, because the
-container filesystem is rebuilt from the image on each deploy.
-
-On the **StudyHub service** → **Settings → Volumes → New Volume**:
-
-- **Mount path:** `/data`
-
-### 4. Set the environment variables
-
-On the **StudyHub service** → **Variables → Raw Editor**, paste this in full:
+On the **StudyHub service → Variables → Raw Editor**:
 
 ```
 NODE_ENV=production
@@ -54,71 +68,59 @@ MYSQL_SSL=false
 
 MONGO_URI=${{MongoDB.MONGO_URL}}
 
-JWT_SECRET=8c542893c13dcea29f8d6a58ef354141248286d09b8cf0f497575083c56c5a01
+JWT_SECRET=<paste your own — generate with: openssl rand -hex 32>
 JWT_EXPIRES_IN=7d
 
-UPLOAD_DIR=/data/uploads
+PUBLIC_URL=https://studyhub-production-2c7b.up.railway.app
+CORS_ORIGIN=https://studyhub-production-2c7b.up.railway.app
 ```
 
-Notes:
+- The `${{MySQL.*}}` forms are Railway **variable references**: they resolve to the
+  live credentials, so rotating a database password doesn't break the app. Match the
+  service names shown on your canvas.
+- **`JWT_SECRET` never belongs in this file or any committed file.** Anyone holding
+  it can forge a login for any account. Generate it, paste it into Railway only.
+  Changing it later logs everyone out, which is exactly what you want after a leak.
+- `PUBLIC_URL` is what verification and referral links are built from. Without it
+  they point at whatever `Host` header arrived with the request.
+- `CORS_ORIGIN` locks both the REST API and the Socket.IO handshake to your domain.
 
-- The `${{MySQL.*}}` and `${{MongoDB.*}}` forms are Railway **variable references** —
-  they resolve to the live credentials of those services, so rotating a database
-  password doesn't break the app. If your service names differ from `MySQL` and
-  `MongoDB`, match the names shown on the canvas.
-- `JWT_SECRET` above was generated for this deploy. **Anyone holding it can forge
-  logins for any account**, so treat it like a password — it should live only in
-  Railway's variables, never in the repo. Regenerate with `openssl rand -hex 32`.
-- Changing `JWT_SECRET` later invalidates every issued token and logs everyone out.
+### 4. Generate a public URL
 
-### 5. Generate a public URL
-
-**Settings → Networking → Generate Domain.** Railway injects `PORT`; the app already
-reads it. You'll get a `*.up.railway.app` URL.
-
-### 6. Confirm the first successful deploy
-
-Watch the deploy logs. A healthy first boot looks like:
-
-```json
-{"level":"info","msg":"MongoDB connected"}
-{"level":"info","msg":"MySQL connected"}
-{"level":"info","msg":"schema migration applied","column":"users.bio"}
-{"level":"info","msg":"schema applied, demo data seeded"}
-{"level":"info","msg":"StudyHub listening on port 3000","env":"production","uploads":"/data/uploads"}
-```
-
-Then check `https://<your-domain>/api/health` → `{"status":"ok","uptime":N}`.
-
-Demo login from the seed data: `vansh@studyhub.dev` / `password123` — change or delete
-that account before sharing the URL publicly.
+**Settings → Networking → Generate Domain.** Railway injects `PORT` and the app reads it.
 
 ---
 
-## Making changes after deployment
+## After each deploy, check
 
-Push to `main`. Railway builds and redeploys automatically, health-checks `/api/health`,
-and keeps the old container serving traffic until the new one passes.
+1. `/api/health` returns `{"status":"ok"}`
+2. Sign in with `vansh` / `password123` (seeded accounts are pre-verified)
+3. Register a new account, find `verification link issued` in the logs, open that URL
+4. Open the site in two browsers and send a chat message — it should arrive instantly
+5. Create a study room and confirm the video call loads
 
-```bash
-git add -A
-git commit -m "your change"
-git push
-```
+---
 
-**What survives a redeploy:** everything in MySQL and MongoDB, and everything in
-`/data/uploads`.
+## Known limits of this deployment
 
-See **[CHANGES.md](CHANGES.md)** for the full guide — adding endpoints, adding database
-columns (there's a real gotcha there), rolling back, and reading production logs.
+- **Verification "emails" are log lines.** There is no mail server, so a new user
+  cannot verify without someone reading the logs. Wiring up Resend or Postmark is a
+  small change and a sensible next commit.
+- **Video runs on the public Jitsi service**, so visitors must allow camera and
+  microphone access, and that feature needs internet even if the rest is reachable.
+- **Attachments and avatars live in MongoDB**, not on disk. No volume to mount, and
+  nothing is lost on redeploy — container filesystems are rebuilt from the image on
+  every push.
+- **Demo data ships with the app.** Change or delete `vansh@studyhub.dev` before
+  sharing the URL widely.
 
 ---
 
 ## Costs
 
-Railway's trial credit covers a project this size to start. After that it's usage-based
-and lands around **$5/month** for the app plus both databases at low traffic. The volume
-is billed on size provisioned, so keep it small (1 GB is plenty) until you need more.
+Railway's trial credit covers a project this size to start. After that it is
+usage-based and lands around **$5/month** for the app plus both databases at low
+traffic.
 
 ---
 
@@ -126,20 +128,22 @@ is billed on size provisioned, so keep it small (1 GB is plenty) until you need 
 
 | Symptom in the logs | Cause |
 |---|---|
-| `JWT_SECRET is too weak for production` | Secret missing or under 32 chars in Railway's variables. |
-| `Startup failed — are MySQL and MongoDB running?` | A `${{...}}` reference doesn't match the actual service names on the canvas. |
-| `MONGO_URI must start with mongodb://` | `MONGO_URI` is empty — the MongoDB service reference didn't resolve. |
-| Uploads 404 after a deploy | Volume not mounted at `/data`, or `UPLOAD_DIR` isn't `/data/uploads`. |
-| `ER_NOT_SUPPORTED_AUTH_MODE` or TLS errors | Only on non-Railway MySQL — set `MYSQL_SSL=true`. |
-| Healthcheck timeouts on deploy | The app can't reach a database; the deploy correctly refuses to go live. |
+| `JWT_SECRET is too weak for production` | Secret missing or under 32 characters in Railway's variables |
+| `Startup failed — are MySQL and MongoDB running?` | A `${{...}}` reference doesn't match the service names on the canvas |
+| `MONGO_URI must start with mongodb://` | The MongoDB reference didn't resolve — the variable is empty |
+| Verification links point at `localhost` | `PUBLIC_URL` is not set |
+| Chat is slow or silent, no socket connection | `CORS_ORIGIN` doesn't match the site's own URL |
+| `ER_NOT_SUPPORTED_AUTH_MODE` or TLS errors | Only on non-Railway MySQL — set `MYSQL_SSL=true` |
+| Healthcheck timeouts on deploy | The app can't reach a database, so the deploy correctly refuses to go live |
 
 ---
 
 ## If you move off Railway later
 
-The app takes plain `MYSQL_*` / `MONGO_URI` variables, so it runs anywhere that gives
-it a Node process and a disk. Two things to carry over: set `MYSQL_SSL=true` for any
-managed MySQL that requires TLS (Aiven, PlanetScale, RDS), and point `UPLOAD_DIR` at
-whatever persistent storage that host offers. If a host has no persistent disk, uploads
-need to move to object storage (S3/R2) — that's a change to `src/config/uploads.js`
-only, since every route already goes through `saveDataUrl`.
+The app takes plain `MYSQL_*` and `MONGO_URI` variables, so it runs anywhere that
+gives it a Node process. Set `MYSQL_SSL=true` for any managed MySQL that requires
+TLS (Aiven, PlanetScale, RDS). Uploads need no special handling — they're in
+MongoDB, so there is no disk to provision.
+
+See **[CHANGES.md](CHANGES.md)** for the day-to-day guide: adding endpoints, adding
+database columns, rolling back, and reading production logs.

@@ -46,6 +46,10 @@ function loadEnv() {
   return {
     port: Number(process.env.PORT),
     nodeEnv: process.env.NODE_ENV || 'development',
+    // Set PUBLIC_URL in production so verification and referral links point at
+    // the real domain rather than whatever Host header a request arrived with.
+    publicUrl: (process.env.PUBLIC_URL || '').replace(/\/$/, ''),
+    corsOrigin: process.env.CORS_ORIGIN || '*',
   };
 }
 

@@ -87,3 +87,27 @@ CREATE TABLE IF NOT EXISTS grades (
   CONSTRAINT fk_grade_user   FOREIGN KEY (user_id)   REFERENCES users(id)   ON DELETE CASCADE,
   CONSTRAINT fk_grade_course FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
+
+-- ---------------------------------------------------------------------------
+-- Guardian (parent) access. A student generates an invite code; a parent
+-- redeems it, which creates the link. Consent is therefore built into the flow.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS student_invites (
+  code       CHAR(8)      NOT NULL PRIMARY KEY,
+  student_id INT UNSIGNED NOT NULL,
+  created_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  expires_at DATETIME     NOT NULL,
+  used_by    INT UNSIGNED NULL,
+  used_at    DATETIME     NULL,
+  CONSTRAINT fk_invite_student FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_invite_parent  FOREIGN KEY (used_by)    REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS guardian_links (
+  parent_id  INT UNSIGNED NOT NULL,
+  student_id INT UNSIGNED NOT NULL,
+  created_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (parent_id, student_id),
+  CONSTRAINT fk_guard_parent  FOREIGN KEY (parent_id)  REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_guard_student FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;

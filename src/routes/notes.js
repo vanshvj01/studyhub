@@ -1,7 +1,7 @@
 const express = require('express');
 const Note = require('../models/Note');
 const { pool } = require('../config/db');
-const { saveDataUrl } = require('../config/uploads');
+const { saveUpload } = require('../config/uploads');
 const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
@@ -35,7 +35,9 @@ router.post('/', async (req, res, next) => {
 
     let saved = [];
     try {
-      saved = (attachments || []).slice(0, 5).map(saveDataUrl);
+      saved = await Promise.all(
+        (attachments || []).slice(0, 5).map(file => saveUpload(file, req.user.id))
+      );
     } catch (e) {
       return res.status(e.status || 400).json({ error: e.message });
     }

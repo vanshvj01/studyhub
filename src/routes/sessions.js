@@ -89,15 +89,24 @@ router.get('/recent', async (req, res, next) => {
 // GET /api/sessions/leaderboard — who studied most in the last 7 days
 router.get('/leaderboard', async (req, res, next) => {
   try {
+    // The totals are aggregated in a derived table keyed by user_id, then joined
+    // to users. Grouping the other way round would force MySQL to GROUP BY the
+    // avatar column — a MEDIUMTEXT holding base64 image data — which builds a
+    // temporary table per row and falls over once anyone uploads a picture.
     const [rows] = await pool.execute(
-      `SELECT u.id, u.name, u.avatar,
-              COALESCE(SUM(s.minutes), 0) AS minutes,
-              COUNT(DISTINCT s.studied_on) AS active_days
+      `SELECT u.id, u.name, u.username, u.avatar,
+              COALESCE(t.minutes, 0)     AS minutes,
+              COALESCE(t.active_days, 0) AS active_days
        FROM users u
-       LEFT JOIN study_sessions s
-         ON s.user_id = u.id AND s.studied_on >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)
-       GROUP BY u.id, u.name, u.avatar
-       HAVING minutes > 0 OR u.id = ?
+       LEFT JOIN (
+         SELECT user_id,
+                SUM(minutes)              AS minutes,
+                COUNT(DISTINCT studied_on) AS active_days
+         FROM study_sessions
+         WHERE studied_on >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)
+         GROUP BY user_id
+       ) t ON t.user_id = u.id
+       WHERE u.role = 'student' AND (t.minutes > 0 OR u.id = ?)
        ORDER BY minutes DESC, u.name ASC
        LIMIT 25`,
       [req.user.id]
@@ -106,6 +115,7 @@ router.get('/leaderboard', async (req, res, next) => {
       rank: i + 1,
       id: r.id,
       name: r.name,
+      username: r.username,
       avatar: r.avatar,
       minutes: Number(r.minutes),
       activeDays: Number(r.active_days),

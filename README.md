@@ -1,8 +1,10 @@
 # StudyHub
 
+**Live demo: https://studyhub-production-2c7b.up.railway.app** — sign in with `vansh` / `password123`
+
 Academic collaboration and progress tracking system. Students share study notes and track progress across courses.
 
-**Stack:** Node.js · Express · MySQL (structured data) · MongoDB (unstructured content) · JWT auth · vanilla JS SPA
+**Stack:** Node.js · Express · Socket.IO · MySQL (structured data) · MongoDB (unstructured content) · JWT auth · vanilla JS SPA
 
 No build step and no frontend framework — the client is a single self-contained `public/index.html`.
 
@@ -18,18 +20,25 @@ No build step and no frontend framework — the client is a single self-containe
 - **Grades** — log marks with weights; weighted per-course averages, letter grades and an overall percentage
 - **Leaderboard** — weekly study-minute ranking across everyone on the platform
 - **Global search** — one box across courses (MySQL) and notes + decks (MongoDB)
-- **Profile** — avatar upload, bio, college, daily study goal, password change, aggregate stats
+- **Messages** — real-time direct messages over Socket.IO, with note sharing and typing indicators
+- **Study rooms** — group rooms with live chat and an embedded Jitsi video call (no account or API key needed)
+- **Parent accounts** — a student issues a single-use invite code; the parent gets a read-only dashboard of progress, study time, deadlines and grades, and can be revoked at any time
+- **Referrals** — every account gets an invite code and link, with attribution and a list of who joined
+- **Profile** — avatar upload with drag-and-zoom cropping, click-to-enlarge viewer, bio, college, daily study goal, password change, guardian management
 
 
 ## Engineering notes
 
+- **Account security** — unique usernames (case-insensitive), password rules enforced server-side, email verification before first sign-in, and identical responses for wrong-password and unknown-account so the API cannot be used to enumerate users. There is no mail server, so the verification link is written to the log and returned outside production.
+- **Roles** — `requireRole` middleware keeps parent accounts to a read-only surface: they can reach their children's summaries and nothing else. The same check runs on the socket handshake, so realtime is not a way around it.
 - **Validation layer** (`src/lib/validate.js`) — routes declare a schema instead of hand-rolling `if (!x)` checks, so every endpoint returns the same error shape: `{ error, errors[] }`. Unknown fields are dropped, which stops clients writing columns they shouldn't.
 - **Structured logging** (`src/lib/logger.js`) — levelled, single-line in development and JSON in production. Every API request logs method, path, status, duration and user id.
 - **Fail-fast config** (`src/config/env.js`) — missing or weak `JWT_SECRET`, a non-numeric port or a malformed Mongo URI stop the process with a readable message instead of a stack trace at first use.
 - **Idempotent migrations** (`src/config/initDb.js`) — schema and column migrations run on every boot, so the app never depends on Docker's one-shot init hook.
 - **Pure domain logic** — streak calculation (`lib/streak.js`) and grade maths (`lib/marks.js`) are separated from routes so they can be tested without a database.
 - **Error handling** — a central handler; 5xx messages are never leaked to clients, unknown `/api/*` paths return JSON rather than the SPA shell.
-- **Uploads** — dependency-free base64 handling with a MIME allowlist and an 8 MB cap.
+- **Uploads** — dependency-free base64 handling with a MIME allowlist and an 8 MB cap. Files are stored in MongoDB and served from `/api/files/:id`, because hosting platforms give containers an ephemeral filesystem — anything written to disk disappears on the next deploy.
+- **Deployment-ready** — `trust proxy` so generated links use https behind a load balancer, TLS for managed MySQL, configurable CORS origin, a health check endpoint, and a `render.yaml` blueprint.
 
 ## Tests
 
@@ -37,7 +46,7 @@ No build step and no frontend framework — the client is a single self-containe
 npm test        # node --test, no external test framework
 ```
 
-29 tests covering the validation layer, streak edge cases (gaps, stale streaks, duplicate days), weighted grade maths, upload MIME/size rejection, and environment validation in isolated processes.
+39 tests covering account rules (usernames, emails, passwords, invite-code alphabet), the validation layer, streak edge cases (gaps, stale streaks, duplicate days), weighted grade maths, upload MIME/size rejection, and environment validation in isolated processes.
 
 ## Architecture
 
@@ -84,7 +93,13 @@ npm install
 npm start              # http://localhost:3000
 ```
 
-Demo login: `vansh@studyhub.dev` / `password123`
+Demo login: `vansh@studyhub.dev` (or username `vansh`) / `password123`. Seeded accounts are pre-verified;
+new accounts must click the verification link, which is printed in the server log.
+
+## Deploying
+
+Deployed on Railway; see **[DEPLOY.md](DEPLOY.md)** for the environment variables and the
+post-deploy checklist. Schema migrations run automatically at boot, so shipping an update is `git push`.
 
 ## Deploy
 
@@ -141,5 +156,26 @@ All routes except `/api/auth/*` and `/api/health` require `Authorization: Bearer
 | DELETE | /api/grades/:id | Delete a mark |
 | GET | /api/search?q= | Search courses, notes and decks |
 | GET | /api/dashboard | Per-course progress, notes, decks, deadlines |
+| GET | /api/auth/available?username= | Live username availability |
+| GET | /api/auth/verify?token= | Confirm an email address |
+| POST | /api/auth/resend | Re-issue a verification link |
+| GET | /api/profile/guardians | Linked parents and open invite codes |
+| POST | /api/profile/guardians/invite | Issue a single-use invite code |
+| DELETE | /api/profile/guardians/:parentId | Revoke a parent's access |
+| GET | /api/parents/children | Parent: linked students with summaries |
+| GET | /api/parents/children/:id | Parent: one student in detail |
+| POST | /api/parents/link | Redeem an invite code |
+| GET | /api/referrals | My code, link and who joined |
+| GET | /api/chat/people | Students I can message |
+| GET | /api/chat/conversations | Recent conversations |
+| GET/POST | /api/chat/dm/:userId | Conversation history / send |
+| GET/POST | /api/chat/rooms | List / create study rooms |
+| GET | /api/chat/rooms/:id | Room, members and messages |
+| POST | /api/chat/rooms/:id/join | Join a room |
+
+### Realtime events (Socket.IO)
+
+The handshake carries the same JWT as the REST API. Clients emit `dm:send`, `room:join`, `room:send` and `typing`;
+the server emits `message`, `presence`, `typing` and `room:joined`.
 
 `postman_collection.json` imports into Postman; Register/Login save the token automatically.
