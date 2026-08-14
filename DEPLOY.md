@@ -109,26 +109,8 @@ git push
 **What survives a redeploy:** everything in MySQL and MongoDB, and everything in
 `/data/uploads`.
 
-**Schema changes** don't need a migration step, but they do need to go through
-`initDb.js` to be applied — editing `db/schema.sql` alone is not enough for a table
-that already exists, because `CREATE TABLE IF NOT EXISTS` won't alter it. To add a
-column, add a row to `COLUMN_MIGRATIONS` in `src/config/initDb.js`:
-
-```js
-['users', 'timezone', "ALTER TABLE users ADD COLUMN timezone VARCHAR(64) NULL"],
-```
-
-It checks `information_schema` before applying, so it's safe to run on every boot and
-safe to leave in place permanently.
-
-**Test locally before pushing** — a bad `schema.sql` takes down startup, and the
-healthcheck will hold the previous version in place rather than serving a broken one:
-
-```bash
-docker compose up -d
-npm test
-npm start
-```
+See **[CHANGES.md](CHANGES.md)** for the full guide — adding endpoints, adding database
+columns (there's a real gotcha there), rolling back, and reading production logs.
 
 ---
 
