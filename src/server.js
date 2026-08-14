@@ -39,6 +39,9 @@ app.use('/api/files', require('./routes/files'));
 app.use('/api/parents', require('./routes/parents'));
 app.use('/api/referrals', require('./routes/referrals'));
 app.use('/api/chat', require('./routes/chat'));   // includes /api/chat/rooms/*
+app.use('/api/exams', require('./routes/exams'));
+app.use('/api/plan', require('./routes/plan'));
+app.use('/api/classroom', require('./routes/classroom'));
 
 // Used by the host's health check, and to wake the instance after it sleeps
 app.get('/api/health', (req, res) => res.json({ status: 'ok', uptime: Math.round(process.uptime()) }));

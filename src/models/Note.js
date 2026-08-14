@@ -22,6 +22,14 @@ const noteSchema = new mongoose.Schema(
     tags: { type: [String], default: [], index: true },
     upvotes: { type: [Number], default: [] },                // user ids that upvoted
     attachments: { type: [attachmentSchema], default: [] },
+
+    // Set when a note was imported rather than written here, so a re-import
+    // updates instead of duplicating.
+    sharedFrom: {
+      source: { type: String, default: null },     // 'classroom'
+      sourceId: { type: String, default: null, index: true },
+      url: { type: String, default: null },
+    },
   },
   { timestamps: true }
 );

@@ -93,8 +93,54 @@ async function send({ to, subject, html, text }) {
   }
 }
 
+function passwordResetEmail({ name, url }) {
+  const safeName = escapeHtml((name || '').split(' ')[0] || 'there');
+  const safeUrl = escapeHtml(url);
+  return {
+    subject: 'Reset your StudyHub password',
+    text: [
+      `Hi ${(name || '').split(' ')[0] || 'there'},`,
+      '',
+      'Use this link within the next hour to set a new password:',
+      url,
+      '',
+      'If you did not ask for this, ignore the message — your password stays as it is.',
+    ].join('\n'),
+    html: `<!doctype html>
+<html><body style="margin:0;padding:24px;background:#f6f7f9;font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#101828">
+  <table role="presentation" style="max-width:520px;margin:0 auto;background:#fff;border:1px solid #e4e7ec;border-radius:10px">
+    <tr><td style="padding:28px">
+      <div style="display:inline-block;width:28px;height:28px;border-radius:6px;background:#3538cd;color:#fff;
+                  text-align:center;line-height:28px;font-weight:700;font-size:13px">SH</div>
+      <span style="font-weight:600;margin-left:8px">StudyHub</span>
+      <h1 style="font-size:20px;font-weight:600;margin:22px 0 8px">Reset your password</h1>
+      <p style="color:#475467;font-size:14px;line-height:1.55;margin:0 0 20px">
+        Hi ${safeName}, choose a new password using the button below. The link works once and expires in an hour.
+      </p>
+      <a href="${safeUrl}" style="display:inline-block;background:#3538cd;color:#fff;text-decoration:none;
+         padding:11px 20px;border-radius:8px;font-weight:500;font-size:14px">Choose a new password</a>
+      <p style="color:#667085;font-size:12.5px;line-height:1.55;margin:22px 0 0">
+        Or paste this link into your browser:<br>
+        <span style="word-break:break-all;color:#3538cd">${safeUrl}</span>
+      </p>
+      <p style="color:#667085;font-size:12.5px;margin:16px 0 0">
+        Didn't ask for this? Ignore this email — nothing has changed.
+      </p>
+    </td></tr>
+  </table>
+</body></html>`,
+  };
+}
+
+async function sendPasswordReset({ to, name, url }) {
+  return send({ to, ...passwordResetEmail({ name, url }) });
+}
+
 async function sendVerification({ to, name, url }) {
   return send({ to, ...verificationEmail({ name, url }) });
 }
 
-module.exports = { send, sendVerification, verificationEmail, transport, autoVerifyEnabled };
+module.exports = {
+  send, sendVerification, sendPasswordReset,
+  verificationEmail, passwordResetEmail, transport, autoVerifyEnabled,
+};

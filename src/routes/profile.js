@@ -7,6 +7,7 @@ const { requireAuth, requireRole } = require('../middleware/auth');
 const { validate } = require('../lib/validate');
 const { shortCode } = require('../lib/ids');
 const { saveUpload } = require('../config/uploads');
+const { normalizePhone } = require('../lib/phone');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -17,8 +18,8 @@ const INVITE_TTL_HOURS = 72;
 router.get('/', async (req, res, next) => {
   try {
     const [[user]] = await pool.execute(
-      `SELECT id, name, username, email, role, bio, college, avatar, daily_goal_minutes,
-              email_verified, referral_code, created_at
+      `SELECT id, name, username, email, phone, role, bio, college, avatar, daily_goal_minutes,
+              email_verified, referral_code, google_id, created_at
        FROM users WHERE id = ?`,
       [req.user.id]
     );
@@ -75,6 +76,16 @@ router.put('/', validate({
   try {
     const { name, bio, college, dailyGoalMinutes } = req.body;
 
+    // An empty string clears the number; anything else must parse.
+    let phone;
+    if (req.body.phone !== undefined) {
+      if (String(req.body.phone).trim() === '') phone = null;
+      else {
+        phone = normalizePhone(req.body.phone);
+        if (!phone) return res.status(400).json({ error: 'Enter a valid phone number, or leave it blank' });
+      }
+    }
+
     // Avatars are stored like any other upload and referenced by URL. Keeping the
     // base64 in the users table would mean every list endpoint that returns a
     // person — leaderboard, chat contacts, referrals — ships megabytes of image
@@ -92,12 +103,21 @@ router.put('/', validate({
         avatar = req.body.avatar; // already a URL, left untouched
       }
     }
-    await pool.execute(
-      `UPDATE users SET name = ?, bio = ?, college = ?, avatar = COALESCE(?, avatar),
-              daily_goal_minutes = ?
-       WHERE id = ?`,
-      [name, bio || null, college || null, avatar || null, dailyGoalMinutes, req.user.id]
-    );
+    try {
+      await pool.execute(
+        `UPDATE users SET name = ?, bio = ?, college = ?, avatar = COALESCE(?, avatar),
+                daily_goal_minutes = ?${phone !== undefined ? ', phone = ?' : ''}
+         WHERE id = ?`,
+        phone !== undefined
+          ? [name, bio || null, college || null, avatar || null, dailyGoalMinutes, phone, req.user.id]
+          : [name, bio || null, college || null, avatar || null, dailyGoalMinutes, req.user.id]
+      );
+    } catch (e) {
+      if (e.code === 'ER_DUP_ENTRY') {
+        return res.status(409).json({ error: 'That phone number is already on another account' });
+      }
+      throw e;
+    }
     // keep the denormalized author name on shared content in sync
     await Promise.all([
       Note.updateMany({ authorId: req.user.id }, { authorName: name }),

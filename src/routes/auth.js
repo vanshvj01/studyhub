@@ -4,13 +4,22 @@ const { pool } = require('../config/db');
 const { signToken } = require('../middleware/auth');
 const { logger } = require('../lib/logger');
 const { shortCode, token: randomToken } = require('../lib/ids');
-const { sendVerification, autoVerifyEnabled, transport } = require('../lib/mailer');
+const { sendVerification, sendPasswordReset, autoVerifyEnabled, transport } = require('../lib/mailer');
+const { normalizePhone, looksLikePhone } = require('../lib/phone');
+const google = require('../lib/google');
 const {
   validateUsername, validateEmail, validatePassword, normalizeUsername,
 } = require('../lib/accounts');
 
 /** The canonical origin for generated links: PUBLIC_URL wins in production. */
 const publicBase = req => (process.env.PUBLIC_URL || '').replace(/\/$/, '') || `${req.protocol}://${req.get('host')}`;
+
+const jwt = require('jsonwebtoken');
+const { usernameFromEmail } = require('../lib/accounts');
+const usernameFromEmailSafe = email => {
+  const candidate = usernameFromEmail(email);
+  return validateUsername(candidate).ok ? candidate : `user${Date.now().toString().slice(-6)}`;
+};
 
 const router = express.Router();
 const isProd = () => process.env.NODE_ENV === 'production';
@@ -44,6 +53,12 @@ router.post('/register', async (req, res, next) => {
     if (!name || !String(name).trim()) return res.status(400).json({ error: 'Full name is required' });
     const accountRole = role === 'parent' ? 'parent' : 'student';
 
+    let phone = null;
+    if (req.body?.phone) {
+      phone = normalizePhone(req.body.phone);
+      if (!phone) return res.status(400).json({ error: 'Enter a valid phone number, or leave it blank' });
+    }
+
     // referral is optional, but a wrong code should not fail silently
     let referrerId = null;
     if (referralCode) {
@@ -60,10 +75,10 @@ router.post('/register', async (req, res, next) => {
     const verificationToken = autoVerify ? null : randomToken(24);
 
     const [result] = await pool.execute(
-      `INSERT INTO users (name, username, email, password_hash, role, referral_code,
+      `INSERT INTO users (name, username, email, phone, password_hash, role, referral_code,
                           referred_by, verification_token, email_verified, verified_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [String(name).trim(), username.value, email.value, await bcrypt.hash(pass.value, 10),
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [String(name).trim(), username.value, email.value, phone, await bcrypt.hash(pass.value, 10),
        accountRole, await uniqueReferralCode(), referrerId, verificationToken,
        autoVerify ? 1 : 0, autoVerify ? new Date() : null]
     );
@@ -90,7 +105,8 @@ router.post('/register', async (req, res, next) => {
     });
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') {
-      const field = /username/.test(err.message) ? 'username' : 'email address';
+      const field = /username/.test(err.message) ? 'username'
+                  : /phone/.test(err.message) ? 'phone number' : 'email address';
       return res.status(409).json({ error: `That ${field} is already registered` });
     }
     next(err);
@@ -142,16 +158,22 @@ router.post('/login', async (req, res, next) => {
       return res.status(400).json({ error: 'Username or email and password are required' });
     }
 
+    // One field accepts a username, an email address or a phone number.
+    const asPhone = looksLikePhone(identifier) ? normalizePhone(identifier) : null;
     const [rows] = await pool.execute(
       `SELECT id, name, username, email, password_hash, role, email_verified
-       FROM users WHERE email = ? OR username = ? LIMIT 1`,
-      [identifier.toLowerCase(), normalizeUsername(identifier)]
+       FROM users WHERE email = ? OR username = ? OR (phone IS NOT NULL AND phone = ?) LIMIT 1`,
+      [identifier.toLowerCase(), normalizeUsername(identifier), asPhone]
     );
     const user = rows[0];
 
     // Same message either way: never reveal whether an account exists.
-    if (!user || !(await bcrypt.compare(password, user.password_hash))) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+    if (!user || !user.password_hash || !(await bcrypt.compare(password, user.password_hash))) {
+      return res.status(401).json({
+        error: user && !user.password_hash
+          ? 'This account signs in with Google'
+          : 'Invalid credentials',
+      });
     }
     if (!user.email_verified) {
       return res.status(403).json({ error: 'Verify your email address before signing in', needsVerification: true });
@@ -169,6 +191,145 @@ router.get('/available', async (req, res, next) => {
     const [rows] = await pool.execute('SELECT 1 FROM users WHERE username = ?', [username.value]);
     res.json({ available: rows.length === 0, reason: rows.length ? 'Already taken' : 'Available' });
   } catch (err) { next(err); }
+});
+
+// POST /api/auth/forgot { identifier } — username, email or phone
+router.post('/forgot', async (req, res, next) => {
+  try {
+    const identifier = String(req.body?.identifier || '').trim();
+    // Always the same answer, so this cannot be used to discover accounts.
+    const generic = { message: 'If that account exists, a reset link is on its way.' };
+    if (!identifier) return res.json(generic);
+
+    const asPhone = looksLikePhone(identifier) ? normalizePhone(identifier) : null;
+    const [rows] = await pool.execute(
+      `SELECT id, name, email FROM users
+       WHERE email = ? OR username = ? OR (phone IS NOT NULL AND phone = ?) LIMIT 1`,
+      [identifier.toLowerCase(), normalizeUsername(identifier), asPhone]
+    );
+    if (rows.length === 0) return res.json(generic);
+
+    const resetToken = randomToken(24);
+    await pool.execute(
+      'UPDATE users SET reset_token = ?, reset_expires = DATE_ADD(NOW(), INTERVAL 60 MINUTE) WHERE id = ?',
+      [resetToken, rows[0].id]
+    );
+    const resetUrl = `${publicBase(req)}/?reset=${resetToken}`;
+    const delivery = await sendPasswordReset({ to: rows[0].email, name: rows[0].name, url: resetUrl });
+    logger.info('password reset requested', { user: rows[0].id, delivered: delivery.delivered });
+
+    // With no mail provider the link would be unreachable, so it comes back in
+    // the response instead. Once email works this branch never runs.
+    res.json(delivery.delivered ? generic : { ...generic, resetUrl });
+  } catch (err) { next(err); }
+});
+
+// POST /api/auth/reset { token, password }
+router.post('/reset', async (req, res, next) => {
+  try {
+    const { token, password } = req.body || {};
+    if (!token) return res.status(400).json({ error: 'Reset token is missing' });
+    const checked = validatePassword(password);
+    if (!checked.ok) return res.status(400).json({ error: checked.error });
+
+    const [rows] = await pool.execute(
+      'SELECT id FROM users WHERE reset_token = ? AND reset_expires > NOW() LIMIT 1',
+      [String(token)]
+    );
+    if (rows.length === 0) {
+      return res.status(400).json({ error: 'That reset link is invalid or has expired. Request a new one.' });
+    }
+
+    await pool.execute(
+      `UPDATE users SET password_hash = ?, reset_token = NULL, reset_expires = NULL,
+              email_verified = 1, verified_at = COALESCE(verified_at, NOW())
+       WHERE id = ?`,
+      [await bcrypt.hash(checked.value, 10), rows[0].id]
+    );
+    logger.info('password reset completed', { user: rows[0].id });
+    res.json({ message: 'Password updated. You can sign in now.' });
+  } catch (err) { next(err); }
+});
+
+// GET /api/auth/providers — lets the client show only what is actually configured
+router.get('/providers', (req, res) => {
+  res.json({ google: google.isConfigured(), autoVerify: autoVerifyEnabled(), email: transport() === 'resend' });
+});
+
+// GET /api/auth/google?mode=signin|classroom — start the OAuth dance
+router.get('/google', (req, res) => {
+  if (!google.isConfigured()) {
+    return res.status(503).json({ error: 'Google sign-in is not configured on this deployment' });
+  }
+  const mode = req.query.mode === 'classroom' ? 'classroom' : 'signin';
+  // The state is signed, so the callback can trust which user asked and why.
+  const state = jwt.sign({ mode, link: req.query.link || null }, process.env.JWT_SECRET, { expiresIn: '10m' });
+  res.redirect(google.authUrl({ base: `${req.protocol}://${req.get('host')}`, state, mode }));
+});
+
+// GET /api/auth/google/callback — Google sends the user back here
+router.get('/google/callback', async (req, res, next) => {
+  try {
+    if (req.query.error) return res.redirect('/?google=denied');
+    const { code, state } = req.query;
+    if (!code || !state) return res.redirect('/?google=failed');
+
+    let payload;
+    try {
+      payload = jwt.verify(String(state), process.env.JWT_SECRET);
+    } catch {
+      return res.redirect('/?google=expired');
+    }
+
+    const base = `${req.protocol}://${req.get('host')}`;
+    const tokens = await google.exchangeCode({ code: String(code), base });
+    const profile = await google.fetchProfile(tokens.access_token);
+    if (!profile.email) return res.redirect('/?google=noemail');
+
+    const email = profile.email.toLowerCase();
+    const [existing] = await pool.execute(
+      'SELECT id, name, username, email, role FROM users WHERE google_id = ? OR email = ? LIMIT 1',
+      [profile.sub, email]
+    );
+
+    let user = existing[0];
+    if (user) {
+      await pool.execute(
+        `UPDATE users SET google_id = ?, email_verified = 1,
+                verified_at = COALESCE(verified_at, NOW()),
+                avatar = COALESCE(avatar, ?),
+                google_refresh_token = COALESCE(?, google_refresh_token)
+         WHERE id = ?`,
+        [profile.sub, profile.picture || null, tokens.refresh_token || null, user.id]
+      );
+    } else {
+      // First sign-in: build a free username from the email local part.
+      const base = usernameFromEmailSafe(email);
+      let username = base;
+      for (let n = 1; ; n++) {
+        const [taken] = await pool.execute('SELECT 1 FROM users WHERE username = ?', [username]);
+        if (taken.length === 0) break;
+        username = `${base.slice(0, 17)}${n}`;
+      }
+      const [result] = await pool.execute(
+        `INSERT INTO users (name, username, email, google_id, avatar, role, referral_code,
+                            email_verified, verified_at, google_refresh_token)
+         VALUES (?, ?, ?, ?, ?, 'student', ?, 1, NOW(), ?)`,
+        [profile.name || username, username, email, profile.sub, profile.picture || null,
+         await uniqueReferralCode(), tokens.refresh_token || null]
+      );
+      user = { id: result.insertId, name: profile.name || username, username, email, role: 'student' };
+      logger.info('account created via Google', { user: user.id });
+    }
+
+    const token = signToken(user);
+    const target = payload.mode === 'classroom' ? '/?google=classroom' : '/?google=1';
+    // The token rides in the fragment so it never lands in server logs.
+    res.redirect(`${target}#token=${token}`);
+  } catch (err) {
+    logger.error('google sign-in failed', { error: err.message });
+    res.redirect('/?google=failed');
+  }
 });
 
 module.exports = router;

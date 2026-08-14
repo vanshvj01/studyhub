@@ -111,3 +111,20 @@ CREATE TABLE IF NOT EXISTS guardian_links (
   CONSTRAINT fk_guard_parent  FOREIGN KEY (parent_id)  REFERENCES users(id) ON DELETE CASCADE,
   CONSTRAINT fk_guard_student FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
+
+-- ---------------------------------------------------------------------------
+-- Exams. Together with assignments these are the deadlines the study planner
+-- schedules backwards from.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS exams (
+  id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id     INT UNSIGNED NOT NULL,
+  course_id   INT UNSIGNED NULL,
+  title       VARCHAR(160) NOT NULL,
+  exam_date   DATE         NOT NULL,
+  starts_at   TIME         NULL,
+  weight      TINYINT UNSIGNED NOT NULL DEFAULT 3,  -- 1 quiz .. 5 finals
+  created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_exam_user   FOREIGN KEY (user_id)   REFERENCES users(id)   ON DELETE CASCADE,
+  CONSTRAINT fk_exam_course FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE SET NULL
+) ENGINE=InnoDB;

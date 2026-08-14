@@ -25,12 +25,27 @@ const COLUMN_MIGRATIONS = [
   ['users', 'verified_at', 'ALTER TABLE users ADD COLUMN verified_at DATETIME NULL'],
   ['users', 'referral_code', 'ALTER TABLE users ADD COLUMN referral_code CHAR(8) NULL'],
   ['users', 'referred_by', 'ALTER TABLE users ADD COLUMN referred_by INT UNSIGNED NULL'],
+  ['users', 'phone', 'ALTER TABLE users ADD COLUMN phone VARCHAR(20) NULL'],
+  ['users', 'google_id', 'ALTER TABLE users ADD COLUMN google_id VARCHAR(40) NULL'],
+  ['users', 'reset_token', 'ALTER TABLE users ADD COLUMN reset_token CHAR(48) NULL'],
+  ['users', 'reset_expires', 'ALTER TABLE users ADD COLUMN reset_expires DATETIME NULL'],
+  ['users', 'google_refresh_token', 'ALTER TABLE users ADD COLUMN google_refresh_token TEXT NULL'],
+  ['users', 'classroom_synced_at', 'ALTER TABLE users ADD COLUMN classroom_synced_at DATETIME NULL'],
+  // password_hash becomes optional: a Google-only account never sets one
+  ['courses', 'source_id', "ALTER TABLE courses ADD COLUMN source_id VARCHAR(64) NULL"],
+  ['courses', 'source', "ALTER TABLE courses ADD COLUMN source ENUM('manual','classroom') NOT NULL DEFAULT 'manual'"],
+  ['assignments', 'source_id', "ALTER TABLE assignments ADD COLUMN source_id VARCHAR(64) NULL"],
+  ['assignments', 'source', "ALTER TABLE assignments ADD COLUMN source ENUM('manual','classroom') NOT NULL DEFAULT 'manual'"],
 ];
 
 // Unique indexes are added only after the corresponding column is backfilled.
 const INDEX_MIGRATIONS = [
   ['users', 'uq_users_username', 'ALTER TABLE users ADD UNIQUE KEY uq_users_username (username)'],
   ['users', 'uq_users_referral', 'ALTER TABLE users ADD UNIQUE KEY uq_users_referral (referral_code)'],
+  ['users', 'uq_users_phone', 'ALTER TABLE users ADD UNIQUE KEY uq_users_phone (phone)'],
+  ['users', 'uq_users_google', 'ALTER TABLE users ADD UNIQUE KEY uq_users_google (google_id)'],
+  ['courses', 'uq_courses_source', 'ALTER TABLE courses ADD UNIQUE KEY uq_courses_source (source, source_id)'],
+  ['assignments', 'uq_assignments_source', 'ALTER TABLE assignments ADD UNIQUE KEY uq_assignments_source (user_id, source, source_id)'],
 ];
 
 async function hasColumn(conn, database, table, column) {
@@ -98,6 +113,17 @@ async function initDb() {
     if (n === 0) {
       await conn.query(fs.readFileSync(path.join(dbDir, 'seed.sql'), 'utf8'));
       logger.info('schema applied, demo data seeded');
+    }
+
+    // Google-only accounts never set a password, so the column must allow NULL.
+    const [[pwCol]] = await conn.query(
+      `SELECT is_nullable FROM information_schema.columns
+       WHERE table_schema = ? AND table_name = 'users' AND column_name = 'password_hash'`,
+      [database]
+    );
+    if (pwCol && pwCol.is_nullable === 'NO') {
+      await conn.query('ALTER TABLE users MODIFY password_hash VARCHAR(255) NULL');
+      logger.info('schema migration applied', { column: 'users.password_hash (now nullable)' });
     }
 
     await backfillAccounts(conn);

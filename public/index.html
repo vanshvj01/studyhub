@@ -198,6 +198,34 @@
                  color: var(--ink-3); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
   .tabs button:hover { color: var(--ink); }
   .tabs button.on { color: var(--accent); border-bottom-color: var(--accent); }
+  /* ---------- password field ---------- */
+  .pw-wrap { position: relative; }
+  .pw-wrap input { padding-right: 66px; }
+  .pw-toggle {
+    position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+    background: none; border: 0; color: var(--ink-3); font-size: 12.5px; font-weight: 500;
+    cursor: pointer; padding: 6px 8px; border-radius: 6px;
+  }
+  .pw-toggle:hover { color: var(--accent); background: var(--surface-2); }
+
+  .divider { display: flex; align-items: center; gap: 12px; margin: 18px 0; color: var(--ink-3); font-size: 12.5px; }
+  .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  .btn-google {
+    display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%;
+    background: var(--surface); border: 1px solid var(--border-2); color: var(--ink);
+    padding: 10px 14px; border-radius: var(--r-md); font-weight: 500; cursor: pointer; text-decoration: none;
+  }
+  .btn-google:hover { background: var(--surface-2); }
+
+  /* ---------- study plan ---------- */
+  .plan-day { border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); padding: 14px 16px; }
+  .plan-day.today { border-color: var(--accent-3); box-shadow: 0 0 0 3px var(--accent-2); }
+  .plan-day.rest { background: var(--surface-2); }
+  .plan-block { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px dashed var(--border); }
+  .plan-block:last-child { border-bottom: 0; }
+  .plan-bar { width: 4px; align-self: stretch; border-radius: 2px; background: var(--accent); flex-shrink: 0; }
+  .plan-bar.exam { background: var(--warn); }
+
   /* ---------- chat ---------- */
   .chat-wrap { display: grid; grid-template-columns: 268px 1fr; gap: 14px; align-items: start; }
   .chat-list { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; }
@@ -288,26 +316,35 @@
 
         <div class="field hidden" id="usernameField">
           <label>Username</label>
-          <input id="regUsername" placeholder="vansh_v" autocomplete="username" oninput="checkUsername()" />
+          <input id="regUsername" placeholder="Choose a username" autocomplete="username" oninput="checkUsername()" />
           <p class="sub" style="font-size:12px;margin-top:5px" id="usernameHint">3–20 characters: lowercase letters, numbers or underscore.</p>
         </div>
 
         <div class="field" id="identifierField">
           <label id="identifierLabel">Username or email</label>
-          <input id="identifier" placeholder="vansh_v" autocomplete="username" />
+          <input id="identifier" placeholder="Username, email or phone number" autocomplete="username" />
         </div>
 
         <div class="field hidden" id="emailField">
-          <label>Email address</label><input id="regEmail" type="email" placeholder="you@somaiya.edu" autocomplete="email" />
+          <label>Email address</label><input id="regEmail" type="email" placeholder="you@college.edu" autocomplete="email" />
         </div>
 
         <div class="field">
           <label>Password</label>
-          <input id="password" type="password" placeholder="••••••••" autocomplete="current-password" oninput="paintStrength()" />
+          <div class="pw-wrap">
+            <input id="password" type="password" placeholder="••••••••" autocomplete="current-password" oninput="paintStrength()" />
+            <button type="button" class="pw-toggle" onclick="togglePassword('password', this)">Show</button>
+          </div>
           <div id="strengthWrap" class="hidden" style="margin-top:7px">
             <div class="bar" style="height:4px"><i id="strengthBar" style="width:0%"></i></div>
             <p class="sub" style="font-size:12px;margin-top:5px" id="strengthText">At least 8 characters, with a letter and a number.</p>
           </div>
+        </div>
+
+        <div class="field hidden" id="phoneField">
+          <label>Phone number <span style="font-weight:400">(optional)</span></label>
+          <input id="regPhone" type="tel" placeholder="+91 98765 43210" autocomplete="tel" />
+          <p class="sub" style="font-size:12px;margin-top:5px">Adds another way to sign in. Never shown to other students.</p>
         </div>
 
         <div class="field hidden" id="roleField">
@@ -321,16 +358,52 @@
 
         <div class="field hidden" id="referralField">
           <label>Referral code <span style="font-weight:400">(optional)</span></label>
-          <input id="regReferral" placeholder="ABCD2345" style="text-transform:uppercase" />
+          <input id="regReferral" placeholder="Code from a friend" style="text-transform:uppercase" />
         </div>
+
+        <p class="sub" id="forgotRow" style="text-align:right;margin:-4px 0 12px">
+          <a href="#" onclick="showForgot();return false" style="color:var(--accent);text-decoration:none">Forgot password?</a>
+        </p>
 
         <button class="btn" style="width:100%" id="authBtn" onclick="submitAuth()">Sign in</button>
         <div class="err" id="authError"></div>
+
+        <div id="googleWrap" class="hidden">
+          <div class="divider">or</div>
+          <a class="btn-google" href="/api/auth/google?mode=signin">
+            <svg width="17" height="17" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.6 12.2c0-.8-.1-1.4-.2-2H12v3.8h6c-.1 1-.8 2.5-2.2 3.5l3.4 2.6c2-1.8 3.4-4.6 3.4-7.9z"/><path fill="#34A853" d="M12 23c2.9 0 5.4-1 7.2-2.6l-3.4-2.6c-.9.6-2.2 1.1-3.8 1.1-2.9 0-5.3-1.9-6.2-4.5l-3.5 2.7C4.1 20.5 7.8 23 12 23z"/><path fill="#FBBC05" d="M5.8 14.4c-.2-.7-.4-1.4-.4-2.4s.1-1.6.4-2.4L2.3 6.9C1.5 8.4 1 10.1 1 12s.5 3.6 1.3 5.1l3.5-2.7z"/><path fill="#EA4335" d="M12 5.4c2 0 3.4.9 4.2 1.6l3-2.9C17.4 2.4 14.9 1.3 12 1.3 7.8 1.3 4.1 3.8 2.3 6.9l3.5 2.7C6.7 7.3 9.1 5.4 12 5.4z"/></svg>
+            <span id="googleBtnText">Continue with Google</span>
+          </a>
+        </div>
 
         <p class="sub" style="text-align:center;margin-top:14px">
           <span id="authSwitchText">Don't have an account?</span>
           <a href="#" onclick="toggleAuthMode();return false" style="color:var(--accent);font-weight:500;text-decoration:none" id="authSwitchLink">Create one</a>
         </p>
+      </div>
+
+      <!-- forgot password -->
+      <div id="forgotPanel" class="hidden">
+        <h1>Reset your password</h1>
+        <p class="sub" style="margin:6px 0 18px">Enter your username, email or phone number and we'll send a reset link.</p>
+        <div class="field"><label>Username, email or phone</label><input id="forgotId" placeholder="you@college.edu" /></div>
+        <button class="btn" style="width:100%" onclick="requestReset()">Send reset link</button>
+        <div class="ok" id="forgotMsg"></div>
+        <button class="btn ghost" style="width:100%;margin-top:12px" onclick="backToSignIn()">Back to sign in</button>
+      </div>
+
+      <!-- set a new password (opened from the emailed link) -->
+      <div id="resetPanel" class="hidden">
+        <h1>Choose a new password</h1>
+        <p class="sub" style="margin:6px 0 18px">This link works once and expires an hour after it was requested.</p>
+        <div class="field"><label>New password</label>
+          <div class="pw-wrap">
+            <input id="resetPw" type="password" placeholder="8+ characters, a letter and a number" autocomplete="new-password" />
+            <button type="button" class="pw-toggle" onclick="togglePassword('resetPw', this)">Show</button>
+          </div>
+        </div>
+        <button class="btn" style="width:100%" onclick="submitReset()">Update password</button>
+        <div class="err" id="resetMsg"></div>
       </div>
 
       <!-- shown after registering -->
@@ -443,12 +516,22 @@ let mode = 'signin';          // 'signin' | 'register'
 let socket = null;
 let usernameTimer = null;
 
+function togglePassword(inputId, btn) {
+  const input = $(inputId);
+  const showing = input.type === 'text';
+  input.type = showing ? 'password' : 'text';
+  btn.textContent = showing ? 'Show' : 'Hide';
+  input.focus();
+}
+
 function toggleAuthMode() {
   mode = mode === 'signin' ? 'register' : 'signin';
   const reg = mode === 'register';
-  ['nameField', 'usernameField', 'emailField', 'roleField', 'referralField', 'strengthWrap']
+  ['nameField', 'usernameField', 'emailField', 'phoneField', 'roleField', 'referralField', 'strengthWrap']
     .forEach(id => $(id).classList.toggle('hidden', !reg));
+  $('forgotRow').classList.toggle('hidden', reg);
   $('identifierField').classList.toggle('hidden', reg);
+  $('googleBtnText').textContent = reg ? 'Sign up with Google' : 'Continue with Google';
   $('authTitle').textContent = reg ? 'Create an account' : 'Sign in';
   $('authLead').textContent = reg
     ? 'Students track their own studies; parents follow a child they are invited by.'
@@ -507,9 +590,17 @@ async function submitAuth() {
     if (mode === 'register') {
       const res = await api('/auth/register', { method: 'POST', body: JSON.stringify({
         name: val('regName'), username: val('regUsername'), email: val('regEmail'),
+        phone: val('regPhone') || undefined,
         password: $('password').value, role: $('regRole').value,
         referralCode: val('regReferral') || undefined,
       })});
+      if (res.verified) {
+        // AUTO_VERIFY is on: sign straight in rather than showing a dead end.
+        const login = await api('/auth/login', { method: 'POST', body: JSON.stringify({
+          identifier: val('regUsername'), password: $('password').value,
+        })});
+        return enterApp(login);
+      }
       $('authForm').classList.add('hidden');
       $('verifyPanel').classList.remove('hidden');
       $('verifyLead').textContent = `We sent a verification link to ${res.user.email}. Verify it, then sign in.`;
@@ -523,19 +614,55 @@ async function submitAuth() {
     const data = await api('/auth/login', { method: 'POST', body: JSON.stringify({
       identifier: val('identifier'), password: $('password').value,
     })});
-    token = data.token;
-    me = data.user;
-    $('authView').classList.add('hidden');
-    $('appView').classList.remove('hidden');
-    await refreshMe();
-    connectSocket();
-    go(me.role === 'parent' ? 'children' : 'home');
+    await enterApp(data);
   } catch (e) {
     err.textContent = e.message;
     if (/verify/i.test(e.message)) {
       err.innerHTML = `${esc(e.message)} — <a href="#" style="color:var(--accent)" onclick="resendVerification();return false">resend the link</a>`;
     }
   }
+}
+
+async function enterApp(data) {
+  token = data.token;
+  me = data.user;
+  $('authView').classList.add('hidden');
+  $('appView').classList.remove('hidden');
+  await refreshMe();
+  connectSocket();
+  go(me.role === 'parent' ? 'children' : 'home');
+}
+
+// ---- forgot / reset ----
+function showPanel(id) {
+  ['authForm', 'forgotPanel', 'resetPanel', 'verifyPanel'].forEach(p => $(p).classList.toggle('hidden', p !== id));
+}
+function showForgot() { showPanel('forgotPanel'); $('forgotId').value = val('identifier'); }
+
+async function requestReset() {
+  const msg = $('forgotMsg');
+  msg.className = 'ok'; msg.textContent = 'Sending…';
+  try {
+    const r = await api('/auth/forgot', { method: 'POST', body: JSON.stringify({ identifier: val('forgotId') }) });
+    msg.innerHTML = r.resetUrl
+      ? `${esc(r.message)}<br><a href="${esc(r.resetUrl)}" style="color:var(--accent);font-weight:500">Open the reset link</a>
+         <br><span class="sub" style="font-size:12px">Shown here because email delivery is not configured.</span>`
+      : esc(r.message);
+  } catch (e) { msg.className = 'err'; msg.textContent = e.message; }
+}
+
+async function submitReset() {
+  const msg = $('resetMsg');
+  msg.className = 'err'; msg.textContent = '';
+  try {
+    const r = await api('/auth/reset', { method: 'POST', body: JSON.stringify({
+      token: resetToken, password: $('resetPw').value,
+    })});
+    history.replaceState({}, '', location.pathname);
+    showPanel('authForm');
+    $('verifiedBanner').classList.remove('hidden');
+    $('verifiedBanner').textContent = r.message;
+  } catch (e) { msg.textContent = e.message; }
 }
 
 async function resendVerification() {
@@ -563,9 +690,46 @@ function logout() {
 
 $('password').addEventListener('keydown', e => { if (e.key === 'Enter') submitAuth(); });
 
-// ?verified=1 comes back from the emailed link; ?ref= pre-fills a referral code
+let resetToken = null;
+
+// ?verified=1 from the emailed link, ?reset= from a reset link, ?ref= from an
+// invite, #token= from the Google callback.
 (function readUrlFlags() {
   const params = new URLSearchParams(location.search);
+
+  // Google sends the session token in the fragment so it never reaches a server log.
+  const hash = new URLSearchParams(location.hash.replace(/^#/, ''));
+  if (hash.get('token')) {
+    const googleToken = hash.get('token');
+    history.replaceState({}, '', location.pathname);
+    (async () => {
+      try {
+        token = googleToken;
+        const profile = await api('/profile');
+        await enterApp({ token: googleToken, user: profile });
+        if (params.get('google') === 'classroom') go('classroom');
+      } catch { token = null; }
+    })();
+    return;
+  }
+
+  const googleError = params.get('google');
+  if (googleError && googleError !== '1' && googleError !== 'classroom') {
+    const el = $('verifiedBanner');
+    el.classList.remove('hidden');
+    el.style.background = 'var(--warn-bg)'; el.style.borderColor = '#fedf89'; el.style.color = 'var(--warn)';
+    el.textContent = {
+      denied: 'Google sign-in was cancelled.',
+      expired: 'That Google sign-in attempt expired. Try again.',
+      noemail: 'Google did not share an email address for that account.',
+      failed: 'Google sign-in failed. Try again, or use your password.',
+    }[googleError] || 'Google sign-in did not complete.';
+  }
+
+  if (params.get('reset')) {
+    resetToken = params.get('reset');
+    showPanel('resetPanel');
+  }
   const verified = params.get('verified');
   if (verified) {
     const el = $('verifiedBanner');
@@ -585,6 +749,19 @@ $('password').addEventListener('keydown', e => { if (e.key === 'Enter') submitAu
     $('regReferral').value = ref.toUpperCase();
   }
 })();
+
+// Only show the Google button when the deployment actually has credentials.
+// Retried once on failure: a cold-started instance can drop the first request.
+let providers = { google: false, autoVerify: false, email: false };
+async function detectProviders(attempt = 1) {
+  try {
+    providers = await api('/auth/providers');
+    $('googleWrap').classList.toggle('hidden', !providers.google);
+  } catch {
+    if (attempt < 3) setTimeout(() => detectProviders(attempt + 1), 800 * attempt);
+  }
+}
+detectProviders();
 
 async function refreshMe() {
   const p = await api('/profile');
@@ -619,15 +796,20 @@ const ICONS = {
   chat: '<path d="M21 15a2 2 0 01-2 2H8l-5 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>',
   rooms: '<path d="M23 7l-7 5 7 5z"/><rect x="1" y="5" width="15" height="14" rx="2"/>',
   refer: '<circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0114 0M19 8v6M22 11h-6"/>',
+  plan: '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 10h18M8 2v4M16 2v4M8 15h4"/>',
+  exams: '<path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h5"/>',
+  classroom: '<path d="M2 8l10-5 10 5-10 5z"/><path d="M6 11v5c0 1.7 2.7 3 6 3s6-1.3 6-3v-5"/>',
   children: '<circle cx="8" cy="9" r="3.2"/><circle cx="17" cy="7" r="2.6"/><path d="M2 20a6 6 0 0112 0M14.5 20a5.5 5.5 0 017.5-5"/>',
   board: '<path d="M8 21h8M12 17v4"/><path d="M7 4h10v5a5 5 0 01-10 0z"/><path d="M17 5h3v2a3 3 0 01-3 3M7 5H4v2a3 3 0 003 3"/>',
   profile: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0116 0"/>',
 };
 const NAV_STUDENT = [
   ['home', 'Dashboard'], ['courses', 'Courses'], ['cards', 'Flashcards'],
-  ['timer', 'Study timer'], ['todo', 'Deadlines'], ['grades', 'Grades'],
+  ['plan', 'Study plan'], ['timer', 'Study timer'], ['todo', 'Deadlines'],
+  ['exams', 'Exams'], ['grades', 'Grades'],
   ['chat', 'Messages'], ['rooms', 'Study rooms'],
-  ['board', 'Leaderboard'], ['refer', 'Refer a friend'], ['profile', 'Profile'],
+  ['board', 'Leaderboard'], ['classroom', 'Classroom import'],
+  ['refer', 'Refer a friend'], ['profile', 'Profile'],
 ];
 const NAV_PARENT = [
   ['children', 'My children'], ['profile', 'Profile'],
@@ -660,6 +842,9 @@ async function go(v, params = {}) {
     else if (v === 'refer') await renderReferrals();
     else if (v === 'children') await renderChildren();
     else if (v === 'child') await renderChild();
+    else if (v === 'plan') await renderPlan();
+    else if (v === 'exams') await renderExams();
+    else if (v === 'classroom') await renderClassroom();
     else if (v === 'profile') await renderProfile();
   } catch (e) {
     $('main').innerHTML = `<div class="card"><h2>Something went wrong</h2><p class="err">${esc(e.message)}</p>
@@ -1826,6 +2011,244 @@ async function unlinkChild(id) {
   go('children');
 }
 
+// ===================== study plan =====================
+const WEEKDAY = d => new Date(d).toLocaleDateString(undefined, { weekday: 'short' });
+const DAYNUM = d => new Date(d).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+
+async function renderPlan() {
+  const days = ctx.days || 14;
+  const plan = await api(`/plan?days=${days}`);
+  const today = new Date().toISOString().slice(0, 10);
+  const hours = m => (m >= 60 ? `${Math.round(m / 60 * 10) / 10}h` : `${m}m`);
+
+  $('main').innerHTML = `
+    <div class="page-head">
+      <div><h1>Study plan</h1>
+        <p class="sub">Built backwards from your deadlines and exams, ${fmtMin(plan.dailyMinutes)} a day.</p></div>
+      <div class="row">
+        ${[7, 14, 30].map(d => `<button class="btn ${days === d ? 'soft' : 'ghost'} sm" onclick="go('plan',{days:${d}})">${d} days</button>`).join('')}
+      </div>
+    </div>
+
+    <div class="grid g-4" style="margin-bottom:16px">
+      <div class="stat s-lav"><div class="n">${plan.totals.items}</div><div class="l">deadlines ahead</div></div>
+      <div class="stat s-mint"><div class="n">${hours(plan.totals.scheduledMinutes)}</div><div class="l">scheduled</div></div>
+      <div class="stat s-sky"><div class="n">${hours(plan.totals.requiredMinutes)}</div><div class="l">estimated work</div></div>
+      <div class="stat ${plan.warnings.length ? 's-peach' : 's-mint'}"><div class="n">${plan.warnings.length}</div><div class="l">at risk</div></div>
+    </div>
+
+    ${plan.warnings.length ? `<div class="card" style="background:var(--warn-bg);border-color:#fedf89;margin-bottom:16px">
+      <h2 style="color:var(--warn);margin-bottom:8px">Tight on time</h2>
+      ${plan.warnings.map(w => `<div class="todo" style="border-color:#fedf89">
+          <div style="flex:1"><span style="font-weight:500">${esc(w.title)}</span>
+            <div class="sub" style="font-size:12px">${esc(w.reason)}</div></div>
+        </div>`).join('')}
+      <p class="sub" style="font-size:12.5px;margin-top:10px">Raise your daily goal in Profile, or start earlier.</p>
+    </div>` : ''}
+
+    ${plan.totals.items === 0 ? `<div class="card">${emptyArt('No upcoming deadlines or exams to plan around.')}
+        <div class="row" style="justify-content:center;gap:8px">
+          <button class="btn" onclick="go('todo')">Add a deadline</button>
+          <button class="btn ghost" onclick="go('exams')">Add an exam</button>
+        </div></div>`
+    : `<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(240px,1fr))">
+        ${plan.days.map(d => `
+          <div class="plan-day ${d.date === today ? 'today' : ''} ${d.blocks.length ? '' : 'rest'}">
+            <div class="spread" style="margin-bottom:10px">
+              <div><span style="font-weight:600">${WEEKDAY(d.date)}</span>
+                <span class="sub" style="margin-left:6px">${DAYNUM(d.date)}</span></div>
+              ${d.totalMinutes ? `<span class="pill p-lav">${hours(d.totalMinutes)}</span>`
+                               : '<span class="sub" style="font-size:12px">free</span>'}
+            </div>
+            ${d.blocks.map(b => `<div class="plan-block">
+                <div class="plan-bar ${b.type}"></div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-weight:500;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(b.title)}</div>
+                  <div class="sub" style="font-size:11.5px">${b.courseCode ? esc(b.courseCode) + ' · ' : ''}${b.type} · ${b.daysLeft}d left</div>
+                </div>
+                <span class="sub" style="font-size:12px;font-weight:500">${b.minutes}m</span>
+              </div>`).join('')}
+            ${d.date === today && d.blocks.length ? `<button class="btn soft sm" style="width:100%;margin-top:10px" onclick="go('timer')">Start studying</button>` : ''}
+          </div>`).join('')}
+      </div>`}`;
+}
+
+// ===================== exams =====================
+async function renderExams() {
+  const [exams, dash] = await Promise.all([api('/exams'), api('/dashboard')]);
+  $('main').innerHTML = `
+    <div class="page-head"><div><h1>Exams</h1>
+      <p class="sub">Add them by hand, or paste your timetable and let StudyHub read it.</p></div>
+      <button class="btn ghost" onclick="pasteTimetableModal()">Paste a timetable</button></div>
+
+    <div class="card">
+      <h2 style="margin-bottom:12px">Add an exam</h2>
+      <div class="row">
+        <select id="xCourse" style="width:auto">
+          <option value="">No specific course</option>
+          ${dash.map(c => `<option value="${c.id}">${esc(c.code)}</option>`).join('')}
+        </select>
+        <input id="xTitle" placeholder="Mid-sem, Practical, Finals…" style="flex:1;min-width:160px" />
+        <input id="xDate" type="date" style="width:auto" />
+        <input id="xTime" type="time" style="width:auto" />
+        <select id="xWeight" style="width:auto" title="How much it counts">
+          <option value="1">Quiz</option><option value="2">Class test</option>
+          <option value="3" selected>Mid-sem</option><option value="4">Practical</option>
+          <option value="5">Finals</option>
+        </select>
+        <button class="btn" onclick="addExam()">Add</button>
+      </div>
+      <p class="sub" style="font-size:12px;margin-top:8px">Weight decides how much study time the planner reserves.</p>
+      <div class="err" id="xErr"></div>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-bottom:12px">Upcoming</h2>
+      ${exams.length ? `<table><thead><tr>
+          <th>Exam</th><th>Course</th><th>Date</th><th>Time</th><th class="num">Counts as</th><th class="num">Away</th><th></th>
+        </tr></thead><tbody>
+        ${exams.map(e => `<tr>
+          <td style="font-weight:500">${esc(e.title)}</td>
+          <td>${e.course_code ? `<span class="code-tag">${esc(e.course_code)}</span>` : '<span class="sub">—</span>'}</td>
+          <td class="sub">${fmtDate(e.exam_date)}</td>
+          <td class="sub">${e.starts_at ? String(e.starts_at).slice(0, 5) : '—'}</td>
+          <td class="num">${['', 'Quiz', 'Class test', 'Mid-sem', 'Practical', 'Finals'][e.weight] || e.weight}</td>
+          <td class="num"><span class="pill ${e.days_left < 0 ? 'p-rose' : e.days_left <= 3 ? 'p-peach' : 'p-sky'}">
+            ${e.days_left < 0 ? 'done' : e.days_left === 0 ? 'today' : e.days_left + 'd'}</span></td>
+          <td class="num"><button class="btn ghost sm icon" onclick="delExam(${e.id})">Remove</button></td>
+        </tr>`).join('')}
+      </tbody></table>` : emptyArt('No exams added yet.')}
+    </div>`;
+}
+
+async function addExam() {
+  const err = $('xErr'); err.textContent = '';
+  if (!val('xTitle') || !val('xDate')) { err.textContent = 'A title and a date are required.'; return; }
+  try {
+    await api('/exams', { method: 'POST', body: JSON.stringify({
+      title: val('xTitle'), examDate: val('xDate'), startsAt: val('xTime') || undefined,
+      courseId: $('xCourse').value || undefined, weight: $('xWeight').value,
+    })});
+    go('exams');
+  } catch (e) { err.textContent = e.message; }
+}
+async function delExam(id) { await api(`/exams/${id}`, { method: 'DELETE' }); go('exams'); }
+
+function pasteTimetableModal() {
+  modal(`<h2>Paste your exam timetable</h2>
+    <p class="sub" style="margin:6px 0 14px">Copy it straight out of the notice, email or PDF — one exam per line.
+      Dates in almost any format are understood.</p>
+    <textarea id="ttText" style="min-height:150px;font-family:ui-monospace,monospace;font-size:12.5px"
+      placeholder="12/09/2026  CS301 Database Systems  10:00 am&#10;14 Sep 2026  CS302 Operating Systems  2:00 pm"></textarea>
+    <div class="err" id="ttErr"></div>
+    <div class="row" style="justify-content:flex-end;margin-top:10px">
+      <button class="btn ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn" onclick="previewTimetable()">Read it</button></div>`);
+}
+
+let timetableRows = [];
+async function previewTimetable() {
+  try {
+    const r = await api('/exams/preview', { method: 'POST', body: JSON.stringify({ text: val('ttText') }) });
+    timetableRows = r.rows;
+    if (!r.rows.length) { $('ttErr').textContent = 'No dates found in that text.'; return; }
+    modal(`<h2>Found ${r.rows.length} exam${r.rows.length === 1 ? '' : 's'}</h2>
+      <p class="sub" style="margin:6px 0 14px">Check these before importing. Untick anything wrong.</p>
+      <table><thead><tr><th style="width:28px"></th><th>Exam</th><th>Date</th><th>Time</th><th>Course</th></tr></thead><tbody>
+        ${r.rows.map((row, i) => `<tr>
+          <td><input type="checkbox" class="ttPick" data-i="${i}" checked style="width:auto" /></td>
+          <td style="font-weight:500">${esc(row.title)}</td>
+          <td class="sub">${fmtDate(row.date)}</td>
+          <td class="sub">${row.time || '—'}</td>
+          <td>${row.courseCode ? `<span class="code-tag">${esc(row.courseCode)}</span>` : '<span class="sub">—</span>'}
+              ${row.courseCode && !row.courseId ? '<span class="sub" style="font-size:11px"> (not enrolled)</span>' : ''}</td>
+        </tr>`).join('')}
+      </tbody></table>
+      ${r.skipped.length ? `<p class="sub" style="font-size:12px;margin-top:12px">
+        Skipped ${r.skipped.length} line${r.skipped.length === 1 ? '' : 's'} with no date in them.</p>` : ''}
+      <div class="err" id="ttErr2"></div>
+      <div class="row" style="justify-content:flex-end;margin-top:12px">
+        <button class="btn ghost" onclick="closeModal()">Cancel</button>
+        <button class="btn" onclick="importTimetable()">Import selected</button></div>`);
+  } catch (e) { $('ttErr').textContent = e.message; }
+}
+
+async function importTimetable() {
+  const picked = [...document.querySelectorAll('.ttPick')].filter(c => c.checked).map(c => timetableRows[Number(c.dataset.i)]);
+  if (!picked.length) { $('ttErr2').textContent = 'Nothing selected.'; return; }
+  try {
+    await api('/exams/import', { method: 'POST', body: JSON.stringify({ rows: picked }) });
+    closeModal();
+    go('exams');
+  } catch (e) { $('ttErr2').textContent = e.message; }
+}
+
+// ===================== google classroom =====================
+async function renderClassroom() {
+  const status = await api('/classroom/status');
+  $('main').innerHTML = `
+    <div class="page-head"><div><h1>Google Classroom</h1>
+      <p class="sub">Import your courses, coursework deadlines and announcements.</p></div></div>
+
+    ${!status.configured ? `<div class="card">
+        <h2>Not configured on this deployment</h2>
+        <p class="sub" style="margin-top:8px">This feature needs a Google Cloud OAuth client.
+          See <b>GOOGLE.md</b> in the repository for the setup steps, then set
+          <code>GOOGLE_CLIENT_ID</code> and <code>GOOGLE_CLIENT_SECRET</code>.</p>
+      </div>`
+    : `<div class="grid g-2">
+        <div class="card">
+          <div class="spread" style="margin-bottom:12px">
+            <h2>Connection</h2>
+            <span class="pill ${status.connected ? 'p-mint' : 'p-peach'}">${status.connected ? 'Connected' : 'Not connected'}</span>
+          </div>
+          ${status.connected
+            ? `<p class="sub">Last import: ${status.lastSyncedAt ? fmtDate(status.lastSyncedAt) : 'never'}.</p>
+               <div class="row" style="margin-top:14px">
+                 <button class="btn" id="syncBtn" onclick="syncClassroom()">Import now</button>
+                 <button class="btn ghost" onclick="disconnectClassroom()">Disconnect</button>
+               </div>`
+            : `<p class="sub">Grant read-only access to your Classroom courses. StudyHub never posts
+                 or changes anything in Classroom.</p>
+               <a class="btn" style="display:inline-block;margin-top:14px" href="/api/auth/google?mode=classroom">Connect Google Classroom</a>`}
+          <div class="ok" id="syncMsg"></div>
+        </div>
+
+        <div>
+          <div class="grid" style="grid-template-columns:1fr 1fr;gap:14px">
+            <div class="stat s-lav"><div class="n">${status.imported.courses}</div><div class="l">courses imported</div></div>
+            <div class="stat s-sky"><div class="n">${status.imported.assignments}</div><div class="l">deadlines imported</div></div>
+          </div>
+          <div class="card" style="margin-top:14px">
+            <h2 style="margin-bottom:10px">What gets imported</h2>
+            <div class="todo"><div style="flex:1"><b>Courses</b><div class="sub" style="font-size:12px">Active Classroom courses become StudyHub courses you're enrolled in</div></div></div>
+            <div class="todo"><div style="flex:1"><b>Coursework</b><div class="sub" style="font-size:12px">Anything with a due date becomes a deadline the planner schedules around</div></div></div>
+            <div class="todo"><div style="flex:1"><b>Announcements</b><div class="sub" style="font-size:12px">Posted text becomes a note, tagged <span class="tag">classroom</span></div></div></div>
+            <p class="sub" style="font-size:12px;margin-top:10px">Re-importing updates existing items rather than duplicating them.</p>
+          </div>
+        </div>
+      </div>`}`;
+}
+
+async function syncClassroom() {
+  const btn = $('syncBtn'), msg = $('syncMsg');
+  btn.disabled = true; btn.textContent = 'Importing…';
+  msg.className = 'ok'; msg.textContent = '';
+  try {
+    const r = await api('/classroom/sync', { method: 'POST' });
+    msg.textContent = `${r.courses} courses, ${r.assignments} deadlines and ${r.notes} notes imported.`;
+    setTimeout(() => go('classroom'), 1200);
+  } catch (e) {
+    msg.className = 'err'; msg.textContent = e.message;
+    btn.disabled = false; btn.textContent = 'Import now';
+  }
+}
+async function disconnectClassroom() {
+  if (!confirm('Disconnect Google Classroom? Imported courses and deadlines stay.')) return;
+  await api('/classroom/connection', { method: 'DELETE' });
+  go('classroom');
+}
+
 // ===================== profile =====================
 async function renderProfile() {
   const p = await api('/profile');
@@ -1883,6 +2306,9 @@ async function renderProfile() {
         <div class="field"><label>Username</label>
           <input value="${esc(p.username)}" disabled style="background:var(--surface-2);color:var(--ink-3)" />
           <p class="sub" style="font-size:12px;margin-top:5px">Usernames are permanent.</p></div>
+        <div class="field"><label>Phone number</label>
+          <input id="pPhone" value="${esc(p.phone || '')}" placeholder="+91 98765 43210" />
+          <p class="sub" style="font-size:12px;margin-top:5px">Another way to sign in. Never shown to other students.</p></div>
         <div class="field"><label>College</label><input id="pCollege" value="${esc(p.college || '')}" placeholder="K. J. Somaiya School of Engineering" /></div>
         <div class="field"><label>Bio</label><textarea id="pBio" style="min-height:76px" placeholder="Final-year IT student, into databases and backend.">${esc(p.bio || '')}</textarea></div>
         ${isParent ? '' : `<div class="field"><label>Daily study goal (minutes)</label>
@@ -2038,6 +2464,7 @@ async function saveProfile() {
   try {
     await api('/profile', { method: 'PUT', body: JSON.stringify({
       name: val('pName'), college: val('pCollege'), bio: val('pBio'),
+      phone: $('pPhone') ? val('pPhone') : undefined,
       dailyGoalMinutes: $('pGoal') ? $('pGoal').value : 60,
       avatar: crop.result,
     })});
