@@ -8,6 +8,7 @@
 const { pool } = require('./config/db');
 const { logger } = require('./lib/logger');
 const { syncUserClassroom, dueForSync } = require('./lib/classroomSync');
+const { purgeExpired, RETENTION_DAYS } = require('./lib/classroomArchive');
 
 const intervalMinutes = () => Number(process.env.CLASSROOM_SYNC_MINUTES ?? 30);
 
@@ -60,6 +61,17 @@ async function runPass() {
   }
 }
 
+let purgeTimer = null;
+
+/** Deletes Classroom archives past their grace period. Cheap, so once a day is plenty. */
+async function runPurge() {
+  try {
+    await purgeExpired();
+  } catch (err) {
+    logger.error('archive purge failed', { error: err.message });
+  }
+}
+
 function startScheduler() {
   const minutes = intervalMinutes();
   if (!minutes || minutes <= 0) {
@@ -72,10 +84,17 @@ function startScheduler() {
   timer = setInterval(runPass, tickMs);
   timer.unref?.();
   setTimeout(runPass, 20_000).unref?.();   // one pass shortly after boot
-  logger.info('classroom auto-sync started', { everyMinutes: minutes });
+  purgeTimer = setInterval(runPurge, 24 * 60 * 60_000);
+  purgeTimer.unref?.();
+  setTimeout(runPurge, 60_000).unref?.();
+  logger.info('classroom auto-sync started', { everyMinutes: minutes, archiveRetentionDays: RETENTION_DAYS });
   return timer;
 }
 
-const stopScheduler = () => { if (timer) clearInterval(timer); timer = null; };
+const stopScheduler = () => {
+  if (timer) clearInterval(timer);
+  if (purgeTimer) clearInterval(purgeTimer);
+  timer = null; purgeTimer = null;
+};
 
-module.exports = { startScheduler, stopScheduler, runPass };
+module.exports = { startScheduler, stopScheduler, runPass, runPurge };

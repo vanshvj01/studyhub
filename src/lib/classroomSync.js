@@ -54,7 +54,11 @@ async function syncUserClassroom(userId) {
     );
     let courseId = existing[0]?.id;
     if (courseId) {
-      await pool.execute('UPDATE courses SET title = ?, semester = ? WHERE id = ?', [title, semester, courseId]);
+      // Only fill in blanks — a title the student edited here is theirs to keep.
+      await pool.execute(
+        'UPDATE courses SET semester = COALESCE(NULLIF(semester, \'\'), ?) WHERE id = ?',
+        [semester, courseId]
+      );
     } else {
       let unique = code;
       for (let n = 2; ; n++) {
@@ -87,6 +91,28 @@ async function syncUserClassroom(userId) {
         summary.assignments++;
         summary.newDeadlines.push({ title: work.title || 'Coursework', due, course: code });
       }
+
+      // Anything attached to the coursework is worth keeping — one click from
+      // StudyHub straight to the brief, worksheet or reading.
+      const workLinks = google.materialLinks(work.materials);
+      if (workLinks.length || (work.description || '').trim()) {
+        const workKey = `classroom:work:${work.id}`;
+        if (!(await Note.exists({ 'sharedFrom.sourceId': workKey }))) {
+          if (work.alternateLink) workLinks.push({ title: 'Open in Classroom', url: work.alternateLink, type: 'link' });
+          await Note.create({
+            courseId,
+            authorId: userId,
+            authorName: 'Google Classroom',
+            kind: 'material',
+            title: (work.title || 'Coursework').slice(0, 120),
+            content: (work.description || '').trim() || 'Attached to this assignment in Classroom.',
+            tags: ['classroom', 'coursework'],
+            links: workLinks,
+            sharedFrom: { source: 'classroom', sourceId: workKey, url: work.alternateLink || null },
+          });
+          summary.notes++;
+        }
+      }
     }
 
     for (const post of await google.listAnnouncements(accessToken, course.id)) {
@@ -95,17 +121,18 @@ async function syncUserClassroom(userId) {
       const sourceKey = `classroom:${post.id}`;
       if (await Note.exists({ 'sharedFrom.sourceId': sourceKey })) continue;
 
-      const materials = (post.materials || [])
-        .map(m => m.driveFile?.driveFile?.title || m.link?.title || m.youtubeVideo?.title)
-        .filter(Boolean);
+      const links = google.materialLinks(post.materials);
+      if (post.alternateLink) links.push({ title: 'Open in Classroom', url: post.alternateLink, type: 'link' });
 
       await Note.create({
         courseId,
         authorId: userId,
         authorName: 'Google Classroom',
+        kind: 'announcement',
         title: body.split('\n')[0].slice(0, 120) || 'Classroom announcement',
-        content: materials.length ? `${body}\n\nAttached in Classroom:\n- ${materials.join('\n- ')}` : body,
-        tags: ['classroom'],
+        content: body,
+        tags: ['classroom', 'announcement'],
+        links,
         sharedFrom: { source: 'classroom', sourceId: sourceKey, url: post.alternateLink || null },
       });
       summary.notes++;

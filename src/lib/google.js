@@ -120,6 +120,27 @@ function dueDateOf(work) {
   return `${d.year}-${String(d.month).padStart(2, '0')}-${String(d.day).padStart(2, '0')}`;
 }
 
+/**
+ * Classroom attaches materials as one of four shapes. This flattens them into
+ * { title, url, type } so the UI can offer a single click through to the original.
+ */
+function materialLinks(materials = []) {
+  const links = [];
+  for (const m of materials) {
+    if (m.driveFile?.driveFile) {
+      const f = m.driveFile.driveFile;
+      links.push({ title: f.title || 'Drive file', url: f.alternateLink, type: 'drive' });
+    } else if (m.link?.url) {
+      links.push({ title: m.link.title || m.link.url, url: m.link.url, type: 'link' });
+    } else if (m.youtubeVideo) {
+      links.push({ title: m.youtubeVideo.title || 'Video', url: m.youtubeVideo.alternateLink, type: 'youtube' });
+    } else if (m.form) {
+      links.push({ title: m.form.title || 'Form', url: m.form.formUrl, type: 'form' });
+    }
+  }
+  return links.filter(l => l.url);
+}
+
 /** Builds a short course code from a Classroom course, e.g. "CS301" or "MATHS-1". */
 function courseCodeOf(course) {
   const fromSection = (course.section || '').match(/\b([A-Z]{2,4}[\s-]?\d{2,4})\b/);
@@ -132,5 +153,5 @@ function courseCodeOf(course) {
 
 module.exports = {
   isConfigured, authUrl, exchangeCode, refreshAccessToken, fetchProfile,
-  listCourses, listCoursework, listAnnouncements, dueDateOf, courseCodeOf, SCOPES, redirectUri,
+  listCourses, listCoursework, listAnnouncements, dueDateOf, courseCodeOf, materialLinks, SCOPES, redirectUri,
 };

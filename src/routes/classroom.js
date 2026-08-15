@@ -3,6 +3,7 @@ const express = require('express');
 const { pool } = require('../config/db');
 const google = require('../lib/google');
 const { syncUserClassroom, hasClassroomScope } = require('../lib/classroomSync');
+const { archiveForUser, restoreForUser, archiveStatus } = require('../lib/classroomArchive');
 const { requireAuth, requireRole } = require('../middleware/auth');
 const { validate } = require('../lib/validate');
 const { logger } = require('../lib/logger');
@@ -27,7 +28,9 @@ router.get('/status', async (req, res, next) => {
       [req.user.id]
     );
     const connected = Boolean(row?.google_refresh_token) && hasClassroomScope(row?.google_scopes);
+    const archive = await archiveStatus(req.user.id);
     res.json({
+      archive,
       configured: google.isConfigured(),
       connected,
       googleLinked: Boolean(row?.google_id),
@@ -45,8 +48,11 @@ router.post('/sync', async (req, res, next) => {
     if (!google.isConfigured()) {
       return res.status(503).json({ error: 'Google is not configured on this deployment' });
     }
+    // Anything archived from a previous disconnect comes back first, so a
+    // re-import updates those rows instead of colliding with them.
+    const restored = await restoreForUser(req.user.id);
     const summary = await syncUserClassroom(req.user.id);
-    res.json({ message: 'Import finished', ...summary });
+    res.json({ message: 'Import finished', ...summary, restored });
   } catch (err) {
     if (err.status === 403) {
       await pool.execute('UPDATE users SET google_scopes = NULL WHERE id = ?', [req.user.id]).catch(() => {});
@@ -66,13 +72,26 @@ router.patch('/settings', validate({ autoSync: { type: 'bool', required: true } 
   } catch (err) { next(err); }
 });
 
-// DELETE /api/classroom/connection
+// POST /api/classroom/restore — bring archived data back
+router.post('/restore', async (req, res, next) => {
+  try {
+    const restored = await restoreForUser(req.user.id);
+    res.json({ message: 'Imported data restored', ...restored });
+  } catch (err) { next(err); }
+});
+
+// DELETE /api/classroom/connection — disconnect and archive what was imported
 router.delete('/connection', async (req, res, next) => {
   try {
     await pool.execute(
       'UPDATE users SET google_refresh_token = NULL, google_scopes = NULL WHERE id = ?', [req.user.id]
     );
-    res.json({ message: 'Google Classroom disconnected. Imported data stays.' });
+    const archived = await archiveForUser(req.user.id);
+    res.json({
+      message: 'Disconnected. Imported courses, deadlines and notes are hidden and can be restored from your profile.',
+      archived,
+      retentionDays: require('../lib/classroomArchive').RETENTION_DAYS,
+    });
   } catch (err) { next(err); }
 });
 

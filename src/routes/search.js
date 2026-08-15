@@ -19,11 +19,11 @@ router.get('/', async (req, res, next) => {
 
     const [courses] = await pool.execute(
       `SELECT id, code, title, semester FROM courses
-       WHERE code LIKE ? OR title LIKE ? ORDER BY code LIMIT 10`,
+       WHERE archived_at IS NULL AND (code LIKE ? OR title LIKE ?) ORDER BY code LIMIT 10`,
       [`%${q}%`, `%${q}%`]
     );
     const [notes, decks] = await Promise.all([
-      Note.find({ $or: [{ title: rx }, { content: rx }, { tags: rx }] })
+      Note.find({ archivedAt: null, $or: [{ title: rx }, { content: rx }, { tags: rx }] })
         .select('title authorName courseId createdAt').sort({ createdAt: -1 }).limit(10).lean(),
       Deck.find({ $or: [{ title: rx }, { description: rx }] })
         .select('title ownerName courseId cards').limit(10).lean(),

@@ -18,8 +18,9 @@ async function summariseStudent(studentId) {
        (SELECT COUNT(*) FROM progress WHERE user_id = ?)                          AS topics,
        (SELECT COUNT(*) FROM progress WHERE user_id = ? AND status = 'completed') AS topicsDone,
        (SELECT COUNT(*) FROM assignments WHERE user_id = ? AND status = 'pending'
-          AND due_date < CURDATE())                                               AS overdue,
-       (SELECT COUNT(*) FROM assignments WHERE user_id = ? AND status = 'pending') AS openAssignments,
+          AND archived_at IS NULL AND due_date < CURDATE())                       AS overdue,
+       (SELECT COUNT(*) FROM assignments WHERE user_id = ? AND status = 'pending'
+          AND archived_at IS NULL)                                                AS openAssignments,
        (SELECT COALESCE(SUM(minutes),0) FROM study_sessions WHERE user_id = ?
           AND studied_on >= DATE_SUB(CURDATE(), INTERVAL 6 DAY))                   AS weekMinutes,
        (SELECT COALESCE(SUM(minutes),0) FROM study_sessions WHERE user_id = ?
@@ -98,7 +99,7 @@ router.get('/children/:id', async (req, res, next) => {
               SUM(p.status = 'completed') AS completed_topics
        FROM enrollments e JOIN courses c ON c.id = e.course_id
        LEFT JOIN progress p ON p.course_id = c.id AND p.user_id = e.user_id
-       WHERE e.user_id = ?
+       WHERE e.user_id = ? AND c.archived_at IS NULL
        GROUP BY c.id, c.code, c.title, c.semester ORDER BY c.code`,
       [studentId]
     );
@@ -107,7 +108,7 @@ router.get('/children/:id', async (req, res, next) => {
       `SELECT a.id, a.title, a.due_date, a.status, c.code AS course_code,
               DATEDIFF(a.due_date, CURDATE()) AS days_left
        FROM assignments a JOIN courses c ON c.id = a.course_id
-       WHERE a.user_id = ? AND a.status = 'pending'
+       WHERE a.user_id = ? AND a.status = 'pending' AND a.archived_at IS NULL
        ORDER BY a.due_date LIMIT 20`,
       [studentId]
     );

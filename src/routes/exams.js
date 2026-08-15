@@ -21,7 +21,7 @@ router.get('/', async (req, res, next) => {
               (SELECT COUNT(*) FROM syllabus_topics t
                 WHERE t.user_id = e.user_id AND t.course_id = e.course_id) AS course_topics
        FROM exams e LEFT JOIN courses c ON c.id = e.course_id
-       WHERE e.user_id = ?
+       WHERE e.user_id = ? AND (c.id IS NULL OR c.archived_at IS NULL)
        ORDER BY e.exam_date`,
       [req.user.id]
     );

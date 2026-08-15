@@ -19,7 +19,8 @@ router.get('/', async (req, res, next) => {
     const [assignments] = await pool.execute(
       `SELECT a.id, a.title, DATE_FORMAT(a.due_date, '%Y-%m-%d') AS due, c.code AS course_code
        FROM assignments a JOIN courses c ON c.id = a.course_id
-       WHERE a.user_id = ? AND a.status = 'pending' AND a.due_date >= CURDATE()`,
+       WHERE a.user_id = ? AND a.status = 'pending' AND a.due_date >= CURDATE()
+         AND a.archived_at IS NULL`,
       [req.user.id]
     );
 

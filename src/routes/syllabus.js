@@ -22,7 +22,7 @@ router.get('/', async (req, res, next) => {
       `SELECT t.id, t.course_id, t.unit, t.title, t.order_index, t.difficulty, t.status, t.notes,
               c.code AS course_code
        FROM syllabus_topics t JOIN courses c ON c.id = t.course_id
-       WHERE ${where.join(' AND ')}
+       WHERE ${where.join(' AND ')} AND c.archived_at IS NULL
        ORDER BY c.code, t.order_index, t.id`,
       params
     );

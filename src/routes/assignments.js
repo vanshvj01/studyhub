@@ -10,7 +10,7 @@ router.use(requireAuth);
 router.get('/', async (req, res, next) => {
   try {
     const { courseId, scope } = req.query;
-    const where = ['a.user_id = ?'];
+    const where = ['a.user_id = ?', 'a.archived_at IS NULL'];
     const params = [req.user.id];
     if (courseId) { where.push('a.course_id = ?'); params.push(courseId); }
     if (scope === 'upcoming') where.push("a.status = 'pending'");

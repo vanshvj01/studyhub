@@ -38,6 +38,10 @@ const COLUMN_MIGRATIONS = [
   ['courses', 'source', "ALTER TABLE courses ADD COLUMN source ENUM('manual','classroom') NOT NULL DEFAULT 'manual'"],
   ['assignments', 'source_id', "ALTER TABLE assignments ADD COLUMN source_id VARCHAR(64) NULL"],
   ['assignments', 'source', "ALTER TABLE assignments ADD COLUMN source ENUM('manual','classroom') NOT NULL DEFAULT 'manual'"],
+  // Disconnecting Classroom archives rather than deletes; these mark the hidden rows.
+  ['courses', 'archived_at', 'ALTER TABLE courses ADD COLUMN archived_at DATETIME NULL'],
+  ['assignments', 'archived_at', 'ALTER TABLE assignments ADD COLUMN archived_at DATETIME NULL'],
+  ['users', 'classroom_archived_at', 'ALTER TABLE users ADD COLUMN classroom_archived_at DATETIME NULL'],
 ];
 
 // Unique indexes are added only after the corresponding column is backfilled.

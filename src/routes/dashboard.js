@@ -16,11 +16,12 @@ router.get('/', async (req, res, next) => {
               COUNT(p.id) AS total_topics,
               SUM(p.status = 'completed') AS completed_topics,
               (SELECT COUNT(*) FROM assignments a
-                 WHERE a.course_id = c.id AND a.user_id = e.user_id AND a.status = 'pending') AS open_assignments
+                 WHERE a.course_id = c.id AND a.user_id = e.user_id AND a.status = 'pending'
+                   AND a.archived_at IS NULL) AS open_assignments
        FROM enrollments e
        JOIN courses c ON c.id = e.course_id
        LEFT JOIN progress p ON p.course_id = c.id AND p.user_id = e.user_id
-       WHERE e.user_id = ?
+       WHERE e.user_id = ? AND c.archived_at IS NULL
        GROUP BY c.id, c.code, c.title, c.semester, e.user_id
        ORDER BY c.code`,
       [req.user.id]
@@ -28,7 +29,7 @@ router.get('/', async (req, res, next) => {
 
     const ids = courses.map(c => c.id);
     const [noteCounts, deckCounts] = await Promise.all([
-      ids.length ? Note.aggregate([{ $match: { courseId: { $in: ids } } }, { $group: { _id: '$courseId', count: { $sum: 1 } } }]) : [],
+      ids.length ? Note.aggregate([{ $match: { courseId: { $in: ids }, archivedAt: null } }, { $group: { _id: '$courseId', count: { $sum: 1 } } }]) : [],
       ids.length ? Deck.aggregate([{ $match: { courseId: { $in: ids } } }, { $group: { _id: '$courseId', count: { $sum: 1 } } }]) : [],
     ]);
     const noteMap = Object.fromEntries(noteCounts.map(n => [n._id, n.count]));

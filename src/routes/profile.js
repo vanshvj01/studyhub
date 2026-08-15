@@ -37,7 +37,8 @@ router.get('/', async (req, res, next) => {
          (SELECT COUNT(*) FROM enrollments WHERE user_id = ?)                          AS courses,
          (SELECT COUNT(*) FROM progress WHERE user_id = ? AND status = 'completed')    AS topicsDone,
          (SELECT COUNT(*) FROM progress WHERE user_id = ?)                             AS topicsTotal,
-         (SELECT COUNT(*) FROM assignments WHERE user_id = ? AND status = 'pending')   AS openAssignments,
+         (SELECT COUNT(*) FROM assignments WHERE user_id = ? AND status = 'pending'
+            AND archived_at IS NULL)                                                    AS openAssignments,
          (SELECT COALESCE(SUM(minutes),0) FROM study_sessions WHERE user_id = ?)       AS totalMinutes,
          (SELECT COUNT(*) FROM guardian_links WHERE student_id = ?)                    AS guardians,
          (SELECT COUNT(*) FROM users WHERE referred_by = ?)                            AS referrals`,
@@ -45,7 +46,7 @@ router.get('/', async (req, res, next) => {
     );
 
     const [notesShared, decksBuilt] = await Promise.all([
-      Note.countDocuments({ authorId: req.user.id }),
+      Note.countDocuments({ authorId: req.user.id, archivedAt: null }),
       Deck.countDocuments({ ownerId: req.user.id }),
     ]);
 

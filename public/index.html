@@ -221,6 +221,11 @@
   .note pre { white-space: pre-wrap; font-family: inherit; margin: 7px 0; color: var(--ink-2); font-size: 13px; }
   .tag { display: inline-block; background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px;
          padding: 1px 7px; font-size: 11.5px; color: var(--ink-2); margin: 2px 4px 2px 0; }
+  .link-chip { display: inline-flex; align-items: center; gap: 6px; background: var(--surface);
+               border: 1px solid var(--border-2); border-radius: 6px; padding: 5px 10px; font-size: 12.5px;
+               text-decoration: none; color: var(--accent); font-weight: 500; margin: 4px 6px 0 0; }
+  .link-chip:hover { background: var(--accent-2); border-color: var(--accent-3); }
+  .link-chip svg { width: 13px; height: 13px; }
   .att { display: inline-flex; align-items: center; gap: 5px; background: var(--surface-2); border: 1px solid var(--border);
          border-radius: 5px; padding: 4px 9px; font-size: 12.5px; text-decoration: none; color: var(--accent); font-weight: 500; margin: 4px 6px 0 0; }
   .todo { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }
@@ -370,10 +375,6 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round">
           <circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/></svg>
       </button>
-      <button data-theme-choice="system" title="Match system" aria-label="Match system theme">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
-      </button>
       <button data-theme-choice="dark" title="Dark" aria-label="Dark theme">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21 13a8.5 8.5 0 01-10-10 8.5 8.5 0 1010 10z"/></svg>
@@ -520,10 +521,6 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round">
           <circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/></svg>
       </button>
-      <button data-theme-choice="system" title="Match system" aria-label="Match system theme">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
-      </button>
       <button data-theme-choice="dark" title="Dark" aria-label="Dark theme">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21 13a8.5 8.5 0 01-10-10 8.5 8.5 0 1010 10z"/></svg>
@@ -551,19 +548,24 @@
 const THEME_KEY = 'studyhub-theme';
 const systemPrefersDark = () => window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
 
+/**
+ * Two modes: light or dark. The operating system decides which one a first-time
+ * visitor sees; after that the saved choice wins and never changes on its own.
+ */
 function readThemeChoice() {
   try {
     const saved = localStorage.getItem(THEME_KEY);
-    return ['light', 'dark', 'system'].includes(saved) ? saved : 'system';
-  } catch { return 'system'; }   // private mode blocks storage; fall back gracefully
+    if (saved === 'light' || saved === 'dark') return saved;
+  } catch { /* private mode blocks storage */ }
+  return systemPrefersDark() ? 'dark' : 'light';
 }
 
 function applyTheme(choice = readThemeChoice()) {
-  const resolved = choice === 'system' ? (systemPrefersDark() ? 'dark' : 'light') : choice;
+  const resolved = choice === 'dark' ? 'dark' : 'light';
   document.documentElement.setAttribute('data-theme', resolved);
   document.documentElement.style.colorScheme = resolved;
   document.querySelectorAll('[data-theme-choice]').forEach(btn => {
-    btn.classList.toggle('on', btn.dataset.themeChoice === choice);
+    btn.classList.toggle('on', btn.dataset.themeChoice === resolved);
   });
   return resolved;
 }
@@ -579,9 +581,12 @@ document.addEventListener('click', e => {
   const btn = e.target.closest?.('[data-theme-choice]');
   if (btn) setTheme(btn.dataset.themeChoice);
 });
-// Follow the OS while the choice is "system", including a live switch at sunset.
-window.matchMedia?.('(prefers-color-scheme: dark)')
-  .addEventListener?.('change', () => { if (readThemeChoice() === 'system') applyTheme('system'); });
+// Follow the OS only until the user picks a side.
+window.matchMedia?.('(prefers-color-scheme: dark)').addEventListener?.('change', () => {
+  let chosen = false;
+  try { chosen = ['light', 'dark'].includes(localStorage.getItem(THEME_KEY)); } catch {}
+  if (!chosen) applyTheme();
+});
 
 // ===================== helpers =====================
 const API = '/api';
@@ -1149,7 +1154,10 @@ async function renderCourse() {
     <div class="card" style="margin-top:12px;border-top:3px solid ${coverFor(id)}">
       <div class="spread">
         <div><span class="code-tag">${esc(ctx.code)}</span>
-          <h1 style="margin-top:9px">${esc(ctx.title)}</h1></div>
+          <div class="row" style="gap:8px;margin-top:9px">
+            <h1>${esc(ctx.title)}</h1>
+            <button class="btn ghost sm" onclick="renameCourseModal(${id})" title="Rename this course">Rename</button>
+          </div></div>
         <div style="text-align:right"><div style="font-size:26px;font-weight:600;letter-spacing:-.025em">${pct}%</div>
           <div class="sub">complete</div></div>
       </div>
@@ -1199,6 +1207,28 @@ async function renderCourse() {
       </div>
     </div>`;
 }
+function renameCourseModal(courseId) {
+  modal(`<h2>Rename course</h2>
+    <p class="sub" style="margin:6px 0 16px">Imported courses keep their link to Classroom, so a rename survives the next import.</p>
+    <div class="field"><label>Course code</label><input id="rcCode" value="${esc(ctx.code || '')}" style="text-transform:uppercase" /></div>
+    <div class="field"><label>Course name</label><input id="rcTitle" value="${esc(ctx.title || '')}" /></div>
+    <div class="err" id="rcErr"></div>
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn" onclick="renameCourse(${courseId})">Save</button></div>`);
+}
+
+async function renameCourse(courseId) {
+  try {
+    if (!val('rcTitle')) { $('rcErr').textContent = 'Give the course a name.'; return; }
+    await api(`/courses/${courseId}`, { method: 'PATCH', body: JSON.stringify({
+      title: val('rcTitle'), code: val('rcCode') || undefined,
+    })});
+    closeModal();
+    go('course', { ...ctx, title: val('rcTitle'), code: (val('rcCode') || ctx.code).toUpperCase() });
+  } catch (e) { $('rcErr').textContent = e.message; }
+}
+
 function courseTab(btn, id) {
   [...btn.parentElement.children].forEach(b => b.classList.remove('on'));
   btn.classList.add('on');
@@ -1340,10 +1370,12 @@ function noteHtml(n) {
     <p class="sub" style="font-size:13px">by ${esc(n.authorName)}</p>
     <pre>${esc(n.content)}</pre>
     <div>${(n.tags || []).map(t => `<span class="tag">#${esc(t)}</span>`).join('')}</div>
+    <div>${linkChips(n.links)}</div>
     <div>${(n.attachments || []).map(a => `<a class="att" href="${esc(a.url)}" target="_blank" rel="noopener">${esc(a.name)}</a>`).join('')}</div>
     <div class="row" style="margin-top:10px">
       <button class="btn ghost sm" onclick="upvote('${n._id}')">Helpful · ${n.upvoteCount ?? 0}</button>
       ${n.authorId === me.id ? `<button class="btn ghost sm" onclick="delNote('${n._id}')">Delete</button>` : ''}
+      ${n.kind && n.kind !== 'note' ? '<span class="sub" style="font-size:11.5px;align-self:center">Imported from Classroom</span>' : ''}
     </div></div>`;
 }
 function noteModal() {
@@ -2547,6 +2579,7 @@ async function importTimetable() {
 // ===================== google classroom =====================
 async function renderClassroom() {
   const status = await api('/classroom/status');
+  const archive = status.archive || {};
   $('main').innerHTML = `
     <div class="page-head"><div><h1>Google Classroom</h1>
       <p class="sub">Import your courses, coursework deadlines and announcements.</p></div></div>
@@ -2557,7 +2590,23 @@ async function renderClassroom() {
           See <b>GOOGLE.md</b> in the repository for the setup steps, then set
           <code>GOOGLE_CLIENT_ID</code> and <code>GOOGLE_CLIENT_SECRET</code>.</p>
       </div>`
-    : `<div class="grid g-2">
+    : `${archive.archived ? `<div class="card" style="background:var(--warn-bg);border-color:color-mix(in srgb, var(--warn) 35%, transparent);margin-bottom:16px">
+        <div class="spread">
+          <div>
+            <h2 style="color:var(--warn)">Imported data is archived</h2>
+            <p class="sub" style="margin-top:6px">
+              ${archive.counts.courses} course${archive.counts.courses === 1 ? '' : 's'},
+              ${archive.counts.assignments} deadline${archive.counts.assignments === 1 ? '' : 's'} and
+              ${archive.counts.notes} note${archive.counts.notes === 1 ? '' : 's'} are hidden since you disconnected.
+              They are deleted permanently on ${fmtDate(archive.deleteOn)}
+              — <b>${archive.daysLeft} day${archive.daysLeft === 1 ? '' : 's'} left</b>.
+            </p>
+          </div>
+          <button class="btn" onclick="restoreClassroom()">Restore now</button>
+        </div>
+      </div>` : ''}
+
+      <div class="grid g-2">
         <div class="card">
           <div class="spread" style="margin-bottom:12px">
             <h2>Connection</h2>
@@ -2584,7 +2633,10 @@ async function renderClassroom() {
                <div class="row" style="margin-top:14px">
                  <button class="btn" id="syncBtn" onclick="syncClassroom()">Import now</button>
                  <button class="btn ghost" onclick="disconnectClassroom()">Disconnect</button>
-               </div>`
+               </div>
+               <p class="sub" style="font-size:12px;margin-top:10px">
+                 Disconnecting hides everything imported and keeps it recoverable for
+                 ${archive.retentionDays || 30} days, then deletes it.</p>`
             : `<p class="sub">${status.googleLinked
                  ? 'Your Google account is linked for sign-in, but Classroom access is a separate permission — it has not been granted yet.'
                  : 'Grant read-only access to your Classroom courses. StudyHub never posts or changes anything in Classroom.'}</p>
@@ -2631,8 +2683,14 @@ async function toggleAutoSync(on) {
 }
 
 async function disconnectClassroom() {
-  if (!confirm('Disconnect Google Classroom? Imported courses and deadlines stay.')) return;
+  if (!confirm('Disconnect Google Classroom?\n\nImported courses, deadlines and notes will be hidden. '
+             + 'You can restore them from this page or your profile for the next 30 days.')) return;
   await api('/classroom/connection', { method: 'DELETE' });
+  go('classroom');
+}
+
+async function restoreClassroom() {
+  await api('/classroom/restore', { method: 'POST' });
   go('classroom');
 }
 
@@ -2642,6 +2700,7 @@ async function renderProfile() {
   const s = p.stats || {};
   const isParent = p.role === 'parent';
   const guardians = isParent ? null : await api('/profile/guardians').catch(() => ({ guardians: [], invites: [] }));
+  const archive = isParent ? {} : await api('/classroom/status').then(r => r.archive || {}).catch(() => ({}));
 
   $('main').innerHTML = `
     <div class="page-head"><div><h1>Profile</h1>
@@ -2678,6 +2737,21 @@ async function renderProfile() {
         <div class="stat s-lav"><div class="n">${s.decksBuilt}</div><div class="l">decks built</div></div>
         <div class="stat s-sky"><div class="n">${s.referrals}</div><div class="l">friends referred</div></div>
       </div>`}
+
+    ${archive.archived ? `<div class="card" style="margin-top:14px;background:var(--warn-bg);border-color:color-mix(in srgb, var(--warn) 35%, transparent)">
+      <div class="spread">
+        <div>
+          <h2 style="color:var(--warn)">Archived Google Classroom data</h2>
+          <p class="sub" style="margin-top:6px">
+            ${archive.counts.courses} course${archive.counts.courses === 1 ? '' : 's'},
+            ${archive.counts.assignments} deadline${archive.counts.assignments === 1 ? '' : 's'} and
+            ${archive.counts.notes} note${archive.counts.notes === 1 ? '' : 's'} from before you disconnected.
+            Deleted permanently on ${fmtDate(archive.deleteOn)} — ${archive.daysLeft} day${archive.daysLeft === 1 ? '' : 's'} left.
+          </p>
+        </div>
+        <button class="btn" onclick="restoreClassroom()">Restore</button>
+      </div>
+    </div>` : ''}
 
     <div class="grid g-2" style="margin-top:14px">
       <div class="card">

@@ -13,7 +13,7 @@ const shape = n => ({ ...n, upvoteCount: n.upvotes.length, upvotes: undefined })
 router.get('/', async (req, res, next) => {
   try {
     const { courseId, tag, search } = req.query;
-    const filter = {};
+    const filter = { archivedAt: null };   // archived imports stay hidden
     if (courseId) filter.courseId = Number(courseId);
     if (tag) filter.tags = tag.toLowerCase();
     if (search) filter.$text = { $search: search };

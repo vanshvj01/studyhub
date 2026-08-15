@@ -25,13 +25,15 @@ Theming is pure CSS custom properties: one set of component rules, two palettes.
 - **Exam portions** — tick which topics are examinable for a given exam; leave it unset and the whole syllabus is planned
 - **Study plan** — schedules backwards from every deadline **and topic-by-topic through each exam's portion**, giving harder and less-revised topics more time, respecting your daily goal, and flagging work that cannot fit in the time left
 - **Exams** — added by hand or by pasting a timetable in almost any date format; a preview step shows what was parsed before anything is saved
-- **Google Classroom import** — read-only sync of courses, coursework deadlines and announcements, running automatically in the background so new assignments appear without anyone pressing import ([setup](GOOGLE.md))
+- **Google Classroom import** — read-only sync of courses, coursework deadlines, announcements and attached materials, running automatically in the background so new assignments appear without anyone pressing import. Announcements are labelled as such rather than passed off as notes, and every Drive file, link, video or form is one click away ([setup](GOOGLE.md))
+- **Disconnecting is reversible** — imported data is archived, not deleted: hidden everywhere, restorable from the Classroom page or your profile for 30 days, then purged automatically
+- **Editable courses** — rename an imported course and the name survives the next sync
 - **Sign in with Google**, or with a username, email address or phone number
 - **Messages** — real-time direct messages over Socket.IO, with note sharing and typing indicators
 - **Study rooms** — group rooms with live chat and an embedded Jitsi video call (no account or API key needed)
 - **Parent accounts** — a student issues a single-use invite code; the parent gets a read-only dashboard of progress, study time, deadlines and grades, and can be revoked at any time
 - **Referrals** — every account gets an invite code and link, with attribution and a list of who joined
-- **Light and dark themes** — follows the operating system by default, or pin either; the choice persists and every component is themed from one palette, so nothing is hardcoded light
+- **Light and dark themes** — two modes; the operating system picks the first time, your choice sticks after that. Every component is themed from one palette, so nothing is hardcoded light
 - **Profile** — avatar upload with drag-and-zoom cropping, click-to-enlarge viewer, bio, college, daily study goal, password change, guardian management
 
 
@@ -46,6 +48,7 @@ Theming is pure CSS custom properties: one set of component rules, two palettes.
 - **Fail-fast config** (`src/config/env.js`) — missing or weak `JWT_SECRET`, a non-numeric port or a malformed Mongo URI stop the process with a readable message instead of a stack trace at first use.
 - **Idempotent migrations** (`src/config/initDb.js`) — schema and column migrations run on every boot, so the app never depends on Docker's one-shot init hook.
 - **Pure domain logic** — streak calculation (`lib/streak.js`), grade maths (`lib/marks.js`), the study planner (`lib/planner.js`), timetable parsing (`lib/timetable.js`) and phone normalisation (`lib/phone.js`) are all separated from routes, so the rules can be tested without a database or a network.
+- **Destructive actions are reversible** (`src/lib/classroomArchive.js`) — disconnecting an integration marks imported rows with `archived_at` instead of deleting them. Every read filters them out, the profile offers a restore with a countdown, a re-import un-archives first so nothing collides on the unique keys, and a daily sweep purges anything past the retention window.
 - **Background work is scheduled, not fire-and-forget** (`src/scheduler.js`) — the Classroom sweep guards against overlapping runs, staggers users by when they were last synced rather than syncing everyone on one tick, isolates per-user failures, and clears stale consent so the UI can prompt a reconnect instead of failing quietly.
 - **Optional integrations degrade quietly** — Google and email are read from the environment at request time. Without credentials the Google button is hidden, the Classroom page explains what is missing, and verification links fall back to the log. No integration is a hard dependency.
 - **Error handling** — a central handler; 5xx messages are never leaked to clients, unknown `/api/*` paths return JSON rather than the SPA shell.
@@ -58,7 +61,7 @@ Theming is pure CSS custom properties: one set of component rules, two palettes.
 npm test        # node --test, no external test framework
 ```
 
-107 tests covering the study planner (capacity limits, deadline ordering, topic effort by difficulty and mastery, impossible workloads), syllabus parsing (units, roman numerals, bullets, inline topic lists), timetable parsing across six date formats, phone normalisation, account rules, email templating and transport selection, (usernames, emails, passwords, invite-code alphabet), the validation layer, streak edge cases (gaps, stale streaks, duplicate days), weighted grade maths, upload MIME/size rejection, and environment validation in isolated processes.
+125 tests covering the study planner (capacity limits, deadline ordering, topic effort by difficulty and mastery, impossible workloads), syllabus parsing (units, roman numerals, bullets, inline topic lists), timetable parsing across six date formats, phone normalisation, account rules, email templating and transport selection, (usernames, emails, passwords, invite-code alphabet), the validation layer, streak edge cases (gaps, stale streaks, duplicate days), weighted grade maths, upload MIME/size rejection, and environment validation in isolated processes.
 
 ## Architecture
 
@@ -184,6 +187,8 @@ All routes except `/api/auth/*` and `/api/health` require `Authorization: Bearer
 | PUT | /api/exams/:id/topics | Set the portion for an exam |
 | GET | /api/classroom/status | Connection state and import counts |
 | POST | /api/classroom/sync | Import from Google Classroom now |
+| POST | /api/classroom/restore | Restore archived imported data |
+| PATCH | /api/courses/:id | Rename a course |
 | PATCH | /api/classroom/settings | Turn automatic importing on or off |
 | GET | /api/dashboard | Per-course progress, notes, decks, deadlines |
 | GET | /api/auth/available?username= | Live username availability |

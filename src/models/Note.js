@@ -25,6 +25,25 @@ const noteSchema = new mongoose.Schema(
 
     // Set when a note was imported rather than written here, so a re-import
     // updates instead of duplicating.
+    // 'note' is something a student wrote; 'announcement' and 'material' come
+    // from Classroom and are labelled as such rather than passed off as notes.
+    kind: { type: String, enum: ['note', 'announcement', 'material'], default: 'note', index: true },
+
+    // Files and links attached in Classroom. Stored as URLs, not copies — one
+    // click opens the original in Drive, YouTube or wherever it lives.
+    links: {
+      type: [{
+        title: { type: String, required: true },
+        url: { type: String, required: true },
+        type: { type: String, default: 'link' },   // drive | link | youtube | form
+        _id: false,
+      }],
+      default: [],
+    },
+
+    // Set when imported data is hidden after disconnecting the source.
+    archivedAt: { type: Date, default: null, index: true },
+
     sharedFrom: {
       source: { type: String, default: null },     // 'classroom'
       sourceId: { type: String, default: null, index: true },
