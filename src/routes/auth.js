@@ -327,8 +327,9 @@ router.get('/google/callback', async (req, res, next) => {
     // The token rides in the fragment so it never lands in server logs.
     res.redirect(`${target}#token=${token}`);
   } catch (err) {
-    logger.error('google sign-in failed', { error: err.message });
-    res.redirect('/?google=failed');
+    logger.error('google sign-in failed', { error: err.message, code: err.code || null });
+    // The reason travels back to the UI so the cause is visible without log access.
+    res.redirect(`/?google=failed&reason=${encodeURIComponent(err.code || 'unknown')}`);
   }
 });
 

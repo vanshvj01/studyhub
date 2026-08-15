@@ -718,12 +718,26 @@ let resetToken = null;
     const el = $('verifiedBanner');
     el.classList.remove('hidden');
     el.style.background = 'var(--warn-bg)'; el.style.borderColor = '#fedf89'; el.style.color = 'var(--warn)';
+    // ?reason= carries Google's own error code, which names the misconfiguration
+    const reason = params.get('reason');
+    const reasons = {
+      invalid_client: 'GOOGLE_CLIENT_SECRET is wrong or does not belong to this client ID.',
+      redirect_uri_mismatch: 'The redirect URI in Google Cloud does not match PUBLIC_URL + /api/auth/google/callback.',
+      invalid_grant: 'That sign-in code was already used or has expired. Start again from the sign-in page.',
+      unauthorized_client: 'This OAuth client is not allowed to use this grant type.',
+      access_denied: 'Access was refused. If the app is in Testing mode, add this account under Test users.',
+    };
     el.textContent = {
       denied: 'Google sign-in was cancelled.',
       expired: 'That Google sign-in attempt expired. Try again.',
       noemail: 'Google did not share an email address for that account.',
       failed: 'Google sign-in failed. Try again, or use your password.',
     }[googleError] || 'Google sign-in did not complete.';
+    if (reason && reasons[reason]) {
+      el.textContent += ' ' + reasons[reason];
+    } else if (reason && reason !== 'unknown') {
+      el.textContent += ` (${reason})`;
+    }
   }
 
   if (params.get('reset')) {

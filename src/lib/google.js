@@ -53,8 +53,13 @@ async function exchangeCode({ code, base }) {
     }),
   });
   if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    throw Object.assign(new Error('Google rejected the sign-in'), { status: 400, detail: detail.slice(0, 300) });
+    // Google's body names the actual problem: invalid_client (wrong secret),
+    // redirect_uri_mismatch, invalid_grant (reused or expired code)...
+    const raw = await res.text().catch(() => '');
+    let code = 'token_exchange_failed';
+    try { code = JSON.parse(raw).error || code; } catch { /* not JSON */ }
+    logger.error('google token exchange failed', { status: res.status, code, detail: raw.slice(0, 200) });
+    throw Object.assign(new Error(`Google rejected the sign-in (${code})`), { status: 400, code });
   }
   return res.json(); // { access_token, refresh_token?, expires_in, id_token }
 }
