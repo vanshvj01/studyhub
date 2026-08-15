@@ -298,9 +298,10 @@ router.get('/google/callback', async (req, res, next) => {
         `UPDATE users SET google_id = ?, email_verified = 1,
                 verified_at = COALESCE(verified_at, NOW()),
                 avatar = COALESCE(avatar, ?),
-                google_refresh_token = COALESCE(?, google_refresh_token)
+                google_refresh_token = COALESCE(?, google_refresh_token),
+                google_scopes = COALESCE(?, google_scopes)
          WHERE id = ?`,
-        [profile.sub, profile.picture || null, tokens.refresh_token || null, user.id]
+        [profile.sub, profile.picture || null, tokens.refresh_token || null, tokens.scope || null, user.id]
       );
     } else {
       // First sign-in: build a free username from the email local part.
@@ -313,10 +314,10 @@ router.get('/google/callback', async (req, res, next) => {
       }
       const [result] = await pool.execute(
         `INSERT INTO users (name, username, email, google_id, avatar, role, referral_code,
-                            email_verified, verified_at, google_refresh_token)
-         VALUES (?, ?, ?, ?, ?, 'student', ?, 1, NOW(), ?)`,
+                            email_verified, verified_at, google_refresh_token, google_scopes)
+         VALUES (?, ?, ?, ?, ?, 'student', ?, 1, NOW(), ?, ?)`,
         [profile.name || username, username, email, profile.sub, profile.picture || null,
-         await uniqueReferralCode(), tokens.refresh_token || null]
+         await uniqueReferralCode(), tokens.refresh_token || null, tokens.scope || null]
       );
       user = { id: result.insertId, name: profile.name || username, username, email, role: 'student' };
       logger.info('account created via Google', { user: user.id });

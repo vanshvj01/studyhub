@@ -2222,9 +2222,11 @@ async function renderClassroom() {
                  <button class="btn" id="syncBtn" onclick="syncClassroom()">Import now</button>
                  <button class="btn ghost" onclick="disconnectClassroom()">Disconnect</button>
                </div>`
-            : `<p class="sub">Grant read-only access to your Classroom courses. StudyHub never posts
-                 or changes anything in Classroom.</p>
-               <a class="btn" style="display:inline-block;margin-top:14px" href="/api/auth/google?mode=classroom">Connect Google Classroom</a>`}
+            : `<p class="sub">${status.googleLinked
+                 ? 'Your Google account is linked for sign-in, but Classroom access is a separate permission — it has not been granted yet.'
+                 : 'Grant read-only access to your Classroom courses. StudyHub never posts or changes anything in Classroom.'}</p>
+               <a class="btn" style="display:inline-block;margin-top:14px" href="/api/auth/google?mode=classroom">
+                 ${status.googleLinked ? 'Grant Classroom access' : 'Connect Google Classroom'}</a>`}
           <div class="ok" id="syncMsg"></div>
         </div>
 

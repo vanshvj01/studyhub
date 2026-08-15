@@ -11,11 +11,25 @@ const { requireAuth, requireRole } = require('../middleware/auth');
 const router = express.Router();
 router.use(requireAuth, requireRole('student'));
 
+// Signing in with Google grants only openid/email/profile. Importing needs the
+// Classroom scopes, which are a separate consent — so "has a Google token" is
+// not the same as "can read Classroom".
+const CLASSROOM_SCOPE = 'https://www.googleapis.com/auth/classroom.courses.readonly';
+const hasClassroomScope = scopes => String(scopes || '').includes(CLASSROOM_SCOPE);
+
 /** A fresh access token from the stored refresh token. */
 async function accessTokenFor(userId) {
-  const [[row]] = await pool.execute('SELECT google_refresh_token FROM users WHERE id = ?', [userId]);
+  const [[row]] = await pool.execute(
+    'SELECT google_refresh_token, google_scopes FROM users WHERE id = ?', [userId]
+  );
   if (!row?.google_refresh_token) {
     throw Object.assign(new Error('Connect Google Classroom first'), { status: 428 });
+  }
+  if (!hasClassroomScope(row.google_scopes)) {
+    throw Object.assign(
+      new Error('Your Google account is signed in, but Classroom access has not been granted yet. Use Connect Google Classroom.'),
+      { status: 428 }
+    );
   }
   const tokens = await google.refreshAccessToken(row.google_refresh_token);
   return tokens.access_token;
@@ -25,7 +39,7 @@ async function accessTokenFor(userId) {
 router.get('/status', async (req, res, next) => {
   try {
     const [[row]] = await pool.execute(
-      'SELECT google_id, google_refresh_token, classroom_synced_at FROM users WHERE id = ?',
+      'SELECT google_id, google_refresh_token, google_scopes, classroom_synced_at FROM users WHERE id = ?',
       [req.user.id]
     );
     const [[counts]] = await pool.execute(
@@ -36,7 +50,8 @@ router.get('/status', async (req, res, next) => {
     );
     res.json({
       configured: google.isConfigured(),
-      connected: Boolean(row?.google_refresh_token),
+      // connected means "can actually read Classroom", not just "signed in with Google"
+      connected: Boolean(row?.google_refresh_token) && hasClassroomScope(row?.google_scopes),
       googleLinked: Boolean(row?.google_id),
       lastSyncedAt: row?.classroom_synced_at || null,
       imported: { courses: Number(counts.courses), assignments: Number(counts.assignments) },
@@ -131,6 +146,11 @@ router.post('/sync', async (req, res, next) => {
     logger.info('classroom sync finished', { user: req.user.id, ...summary });
     res.json({ message: 'Import finished', ...summary });
   } catch (err) {
+    if (err.status === 403) {
+      // Consent has been narrowed or revoked; forget the scopes so the UI offers
+      // the Connect button again rather than a Retry that cannot work.
+      await pool.execute('UPDATE users SET google_scopes = NULL WHERE id = ?', [req.user.id]).catch(() => {});
+    }
     if (err.status) return res.status(err.status).json({ error: err.message });
     next(err);
   }
@@ -139,7 +159,9 @@ router.post('/sync', async (req, res, next) => {
 // DELETE /api/classroom/connection — forget the Google link
 router.delete('/connection', async (req, res, next) => {
   try {
-    await pool.execute('UPDATE users SET google_refresh_token = NULL WHERE id = ?', [req.user.id]);
+    await pool.execute(
+      'UPDATE users SET google_refresh_token = NULL, google_scopes = NULL WHERE id = ?', [req.user.id]
+    );
     res.json({ message: 'Google Classroom disconnected. Imported data stays.' });
   } catch (err) { next(err); }
 });
