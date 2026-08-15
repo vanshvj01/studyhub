@@ -1352,22 +1352,36 @@ async function importSyllabus() {
     go('course', ctx);
   } catch (e) { $('sylErr2').textContent = e.message; }
 }
-async function addTopic() {
-  const t = val('newTopic'); if (!t) return;
-  await api('/progress', { method: 'POST', body: JSON.stringify({ courseId: ctx.id, topic: t, status: 'not_started' }) });
-  go('course', ctx);
-}
-async function setStatus(topic, status) {
-  await api('/progress', { method: 'POST', body: JSON.stringify({ courseId: ctx.id, topic, status }) });
-  go('course', ctx);
-}
-async function delTopic(id) { await api(`/progress/${id}`, { method: 'DELETE' }); go('course', ctx); }
-
 // ---- notes ----
+const LINK_ICON = {
+  drive: '<path d="M8 2l6 10H8l-3-5z"/><path d="M2 14l3-5 3 5z"/><path d="M8 14h6l-3-5z"/>',
+  youtube: '<rect x="2" y="4" width="16" height="12" rx="3"/><path d="M9 8l4 2-4 2z"/>',
+  form: '<rect x="4" y="2" width="12" height="16" rx="2"/><path d="M7 7h6M7 10h6M7 13h4"/>',
+  link: '<path d="M9 11a4 4 0 006 0l2-2a4 4 0 10-6-6l-1 1"/><path d="M11 9a4 4 0 00-6 0l-2 2a4 4 0 106 6l1-1"/>',
+};
+
+// Announcements and coursework pulled from Classroom are labelled, so they are
+// never mistaken for a note a classmate wrote.
+const KIND_BADGE = {
+  announcement: ['p-sky', 'Announcement'],
+  material: ['p-peach', 'Course material'],
+};
+
+/** Files and links attached in Classroom, each one click from the original. */
+function linkChips(links = []) {
+  return (links || []).map(l => `<a class="link-chip" href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      ${LINK_ICON[l.type] || LINK_ICON.link}</svg>
+    ${esc(l.title)}</a>`).join('');
+}
+
 function noteHtml(n) {
+  const badge = KIND_BADGE[n.kind];
   return `<div class="note">
     <div class="spread"><h3>${esc(n.title)}</h3><span class="sub" style="font-size:12px">${fmtDate(n.createdAt)}</span></div>
-    <p class="sub" style="font-size:13px">by ${esc(n.authorName)}</p>
+    <p class="sub" style="font-size:13px">
+      ${badge ? `<span class="pill ${badge[0]}" style="margin-right:6px">${badge[1]}</span>` : ''}
+      by ${esc(n.authorName)}</p>
     <pre>${esc(n.content)}</pre>
     <div>${(n.tags || []).map(t => `<span class="tag">#${esc(t)}</span>`).join('')}</div>
     <div>${linkChips(n.links)}</div>
