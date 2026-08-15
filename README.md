@@ -7,6 +7,7 @@ Academic collaboration and progress tracking system. Students share study notes 
 **Stack:** Node.js · Express · Socket.IO · MySQL (structured data) · MongoDB (unstructured content) · JWT auth · vanilla JS SPA
 
 No build step and no frontend framework — the client is a single self-contained `public/index.html`.
+Theming is pure CSS custom properties: one set of component rules, two palettes.
 
 
 ## Features
@@ -30,6 +31,7 @@ No build step and no frontend framework — the client is a single self-containe
 - **Study rooms** — group rooms with live chat and an embedded Jitsi video call (no account or API key needed)
 - **Parent accounts** — a student issues a single-use invite code; the parent gets a read-only dashboard of progress, study time, deadlines and grades, and can be revoked at any time
 - **Referrals** — every account gets an invite code and link, with attribution and a list of who joined
+- **Light and dark themes** — follows the operating system by default, or pin either; the choice persists and every component is themed from one palette, so nothing is hardcoded light
 - **Profile** — avatar upload with drag-and-zoom cropping, click-to-enlarge viewer, bio, college, daily study goal, password change, guardian management
 
 

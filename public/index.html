@@ -8,7 +8,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
+  /* Light is the default; dark is the same variables with different values, so
+     every component below is written once and themed by the palette alone. */
   :root {
+    color-scheme: light;
     /* neutral base + a single restrained accent */
     --bg:        #f6f7f9;
     --surface:   #ffffff;
@@ -30,9 +33,40 @@
     --info:      #175cd3;  --info-bg:#eff8ff;
 
     --r-lg: 10px; --r-md: 8px; --r-sm: 6px;
+    --on-accent: #ffffff;
+
     --shadow:    0 1px 2px rgba(16,24,40,.05);
     --shadow-md: 0 4px 8px -2px rgba(16,24,40,.08), 0 2px 4px -2px rgba(16,24,40,.04);
     --shadow-lg: 0 12px 16px -4px rgba(16,24,40,.08), 0 4px 6px -2px rgba(16,24,40,.03);
+  }
+
+  [data-theme='dark'] {
+    color-scheme: dark;
+
+    --bg:        #0f1117;
+    --surface:   #171a21;
+    --surface-2: #1e222b;
+    --border:    #262b36;
+    --border-2:  #363d4b;
+
+    --ink:       #e7eaf0;
+    --ink-2:     #a8b0be;
+    --ink-3:     #7d8593;
+
+    /* the accent lifts in dark so it still reads against a near-black surface */
+    --accent:    #8b8ef7;
+    --accent-2:  #21243a;
+    --accent-3:  #3d4270;
+    --on-accent: #14161f;
+
+    --pos:  #4ade80;  --pos-bg:  #10251b;
+    --warn: #fbbf24;  --warn-bg: #2a2114;
+    --neg:  #f87171;  --neg-bg:  #2c181a;
+    --info: #60a5fa;  --info-bg: #12233c;
+
+    --shadow:    0 1px 2px rgba(0,0,0,.4);
+    --shadow-md: 0 4px 10px -2px rgba(0,0,0,.5);
+    --shadow-lg: 0 16px 32px -8px rgba(0,0,0,.6);
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -50,7 +84,7 @@
     padding: 20px 14px; position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column;
   }
   .brand { display: flex; align-items: center; gap: 9px; padding: 0 8px 20px; font-weight: 600; font-size: 15px; letter-spacing: -.01em; }
-  .mark { width: 28px; height: 28px; border-radius: var(--r-sm); background: var(--accent); color: #fff;
+  .mark { width: 28px; height: 28px; border-radius: var(--r-sm); background: var(--accent); color: var(--on-accent);
           display: grid; place-items: center; font-weight: 700; font-size: 13px; letter-spacing: -.02em; }
   .nav { display: flex; flex-direction: column; gap: 2px; }
   .nav button {
@@ -94,7 +128,7 @@
   .field { margin-bottom: 12px; }
 
   .btn {
-    background: var(--accent); color: #fff; border: 1px solid var(--accent); border-radius: var(--r-md);
+    background: var(--accent); color: var(--on-accent); border: 1px solid var(--accent); border-radius: var(--r-md);
     padding: 8px 14px; font-weight: 500; font-size: 13.5px; cursor: pointer; transition: filter .12s; white-space: nowrap;
   }
   .btn:hover { filter: brightness(1.08); }
@@ -108,16 +142,16 @@
 
   .pill { display: inline-flex; align-items: center; gap: 5px; border-radius: 5px; padding: 2px 8px; font-size: 11.5px; font-weight: 500; border: 1px solid transparent; }
   .p-lav  { background: var(--accent-2); color: var(--accent); border-color: var(--accent-3); }
-  .p-mint { background: var(--pos-bg);  color: var(--pos);  border-color: #abefc6; }
-  .p-peach{ background: var(--warn-bg); color: var(--warn); border-color: #fedf89; }
-  .p-sky  { background: var(--info-bg); color: var(--info); border-color: #b2ddff; }
-  .p-rose { background: var(--neg-bg);  color: var(--neg);  border-color: #fecdca; }
+  .p-mint { background: var(--pos-bg);  color: var(--pos);  border-color: color-mix(in srgb, var(--pos) 35%, transparent); }
+  .p-peach{ background: var(--warn-bg); color: var(--warn); border-color: color-mix(in srgb, var(--warn) 35%, transparent); }
+  .p-sky  { background: var(--info-bg); color: var(--info); border-color: color-mix(in srgb, var(--info) 35%, transparent); }
+  .p-rose { background: var(--neg-bg);  color: var(--neg);  border-color: color-mix(in srgb, var(--neg) 35%, transparent); }
 
   .bar { height: 6px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 3px; overflow: hidden; }
   .bar > i { display: block; height: 100%; background: var(--accent); transition: width .3s; }
 
   .avatar { border-radius: 50%; object-fit: cover; flex-shrink: 0; display: grid; place-items: center;
-            font-weight: 600; color: #fff; background: var(--accent); overflow: hidden; letter-spacing: -.01em; }
+            font-weight: 600; color: var(--on-accent); background: var(--accent); overflow: hidden; letter-spacing: -.01em; }
   .empty { text-align: center; padding: 30px 18px; color: var(--ink-3); font-size: 13px; }
   .empty svg { width: 104px; height: 78px; margin-bottom: 8px; }
   .hidden { display: none !important; }
@@ -177,6 +211,8 @@
 
   /* ---------- timer ---------- */
   .timer-ring { display: grid; place-items: center; position: relative; }
+  #ring { stroke: var(--accent); transition: stroke .2s; }
+  #ring.break { stroke: var(--pos); }
   .timer-ring .t { position: absolute; font-size: 34px; font-weight: 600; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
   .spark { display: flex; align-items: flex-end; gap: 6px; height: 84px; }
 
@@ -198,6 +234,13 @@
                  color: var(--ink-3); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
   .tabs button:hover { color: var(--ink); }
   .tabs button.on { color: var(--accent); border-bottom-color: var(--accent); }
+  .theme-toggle { display: flex; gap: 2px; background: var(--surface-2); border: 1px solid var(--border);
+                  border-radius: 8px; padding: 2px; }
+  .theme-toggle button { border: 0; background: none; color: var(--ink-3); cursor: pointer;
+                         padding: 5px 8px; border-radius: 6px; display: grid; place-items: center; }
+  .theme-toggle button:hover { color: var(--ink); }
+  .theme-toggle button.on { background: var(--surface); color: var(--accent); box-shadow: var(--shadow); }
+  .theme-toggle svg { width: 15px; height: 15px; }
   /* ---------- password field ---------- */
   .pw-wrap { position: relative; }
   .pw-wrap input { padding-right: 66px; }
@@ -227,8 +270,8 @@
                     font-size: 11.5px; padding: 3px 8px; cursor: pointer; }
   .mastery button:first-child { border-radius: 5px 0 0 5px; }
   .mastery button:last-child { border-radius: 0 5px 5px 0; }
-  .mastery button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
-  .mastery button.on.done { background: var(--pos); border-color: var(--pos); }
+  .mastery button.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+  .mastery button.on.done { background: var(--pos); border-color: var(--pos); color: var(--on-accent); }
   .diff { display: inline-flex; gap: 2px; align-items: center; }
   .diff i { width: 6px; height: 6px; border-radius: 50%; background: var(--border-2); display: block; }
   .diff i.on { background: var(--warn); }
@@ -257,15 +300,17 @@
   .bubble { max-width: 68%; padding: 8px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); font-size: 13.5px; }
   .bubble .who { font-size: 11.5px; color: var(--ink-3); font-weight: 500; margin-bottom: 2px; }
   .bubble .at { font-size: 11px; color: var(--ink-3); margin-top: 3px; }
-  .bubble.me { align-self: flex-end; background: var(--accent); border-color: var(--accent); color: #fff; }
-  .bubble.me .who, .bubble.me .at { color: rgba(255,255,255,.75); }
+  .bubble.me { align-self: flex-end; background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+  .bubble.me .who, .bubble.me .at { color: color-mix(in srgb, var(--on-accent) 70%, transparent); }
   .bubble .shared { display: block; margin-top: 6px; padding: 8px 10px; border-radius: 8px; background: var(--surface-2);
                     border: 1px solid var(--border); color: var(--accent); text-decoration: none; font-weight: 500; font-size: 12.5px; }
-  .bubble.me .shared { background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.28); color: #fff; }
+  .bubble.me .shared { background: color-mix(in srgb, var(--on-accent) 14%, transparent);
+                       border-color: color-mix(in srgb, var(--on-accent) 28%, transparent); color: var(--on-accent); }
   .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border-2); flex-shrink: 0; }
   .dot.on { background: var(--pos); }
   .typing { font-size: 12px; color: var(--ink-3); font-style: italic; padding: 0 16px 6px; }
-  .video-frame { width: 100%; height: 460px; border: 1px solid var(--border); border-radius: var(--r-lg); background: #000; }
+  .video-frame { width: 100%; height: 460px; border: 1px solid var(--border); border-radius: var(--r-lg); background: #000;
+                 color-scheme: light; }
 
   /* ---------- avatar zoom / crop ---------- */
   .crop-view { width: 240px; height: 240px; border-radius: 50%; overflow: hidden; position: relative;
@@ -289,28 +334,28 @@
   <div class="auth-art">
     <div class="inner">
       <svg viewBox="0 0 420 280" fill="none" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:400px">
-        <rect x="30" y="26" width="360" height="228" rx="8" fill="#ffffff" stroke="#e4e7ec"/>
-        <rect x="30" y="26" width="360" height="34" rx="8" fill="#f9fafb"/>
-        <path d="M30 60h360" stroke="#e4e7ec"/>
-        <circle cx="48" cy="43" r="3.5" fill="#d0d5dd"/><circle cx="60" cy="43" r="3.5" fill="#d0d5dd"/><circle cx="72" cy="43" r="3.5" fill="#d0d5dd"/>
-        <rect x="30" y="60" width="92" height="194" fill="#fcfcfd"/><path d="M122 60v194" stroke="#e4e7ec"/>
-        <rect x="42" y="76" width="66" height="7" rx="3.5" fill="#eef0fb"/>
-        <rect x="42" y="94" width="52" height="7" rx="3.5" fill="#f2f4f7"/>
-        <rect x="42" y="112" width="58" height="7" rx="3.5" fill="#f2f4f7"/>
-        <rect x="42" y="130" width="46" height="7" rx="3.5" fill="#f2f4f7"/>
-        <rect x="138" y="76" width="112" height="9" rx="4.5" fill="#d0d5dd"/>
-        <rect x="138" y="100" width="74" height="52" rx="6" fill="#f9fafb" stroke="#e4e7ec"/>
-        <rect x="222" y="100" width="74" height="52" rx="6" fill="#f9fafb" stroke="#e4e7ec"/>
-        <rect x="306" y="100" width="70" height="52" rx="6" fill="#f9fafb" stroke="#e4e7ec"/>
-        <rect x="150" y="114" width="34" height="10" rx="3" fill="#3538cd"/>
-        <rect x="234" y="114" width="28" height="10" rx="3" fill="#067647"/>
-        <rect x="318" y="114" width="24" height="10" rx="3" fill="#b54708"/>
-        <rect x="150" y="132" width="48" height="6" rx="3" fill="#eaecf0"/>
-        <rect x="234" y="132" width="44" height="6" rx="3" fill="#eaecf0"/>
-        <rect x="318" y="132" width="40" height="6" rx="3" fill="#eaecf0"/>
-        <rect x="138" y="168" width="238" height="70" rx="6" fill="#fcfcfd" stroke="#e4e7ec"/>
-        <path d="M152 224l30-22 26 12 28-30 26 16 34-34" stroke="#3538cd" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-        <circle cx="152" cy="224" r="3" fill="#3538cd"/><circle cx="322" cy="166" r="3" fill="#3538cd"/>
+        <rect x="30" y="26" width="360" height="228" rx="8" fill="var(--surface)" stroke="var(--border)"/>
+        <rect x="30" y="26" width="360" height="34" rx="8" fill="var(--surface-2)"/>
+        <path d="M30 60h360" stroke="var(--border)"/>
+        <circle cx="48" cy="43" r="3.5" fill="var(--border-2)"/><circle cx="60" cy="43" r="3.5" fill="var(--border-2)"/><circle cx="72" cy="43" r="3.5" fill="var(--border-2)"/>
+        <rect x="30" y="60" width="92" height="194" fill="var(--surface-2)"/><path d="M122 60v194" stroke="var(--border)"/>
+        <rect x="42" y="76" width="66" height="7" rx="3.5" fill="var(--accent-2)"/>
+        <rect x="42" y="94" width="52" height="7" rx="3.5" fill="var(--surface-2)"/>
+        <rect x="42" y="112" width="58" height="7" rx="3.5" fill="var(--surface-2)"/>
+        <rect x="42" y="130" width="46" height="7" rx="3.5" fill="var(--surface-2)"/>
+        <rect x="138" y="76" width="112" height="9" rx="4.5" fill="var(--border-2)"/>
+        <rect x="138" y="100" width="74" height="52" rx="6" fill="var(--surface-2)" stroke="var(--border)"/>
+        <rect x="222" y="100" width="74" height="52" rx="6" fill="var(--surface-2)" stroke="var(--border)"/>
+        <rect x="306" y="100" width="70" height="52" rx="6" fill="var(--surface-2)" stroke="var(--border)"/>
+        <rect x="150" y="114" width="34" height="10" rx="3" fill="var(--accent)"/>
+        <rect x="234" y="114" width="28" height="10" rx="3" fill="var(--pos)"/>
+        <rect x="318" y="114" width="24" height="10" rx="3" fill="var(--warn)"/>
+        <rect x="150" y="132" width="48" height="6" rx="3" fill="var(--border)"/>
+        <rect x="234" y="132" width="44" height="6" rx="3" fill="var(--border)"/>
+        <rect x="318" y="132" width="40" height="6" rx="3" fill="var(--border)"/>
+        <rect x="138" y="168" width="238" height="70" rx="6" fill="var(--surface-2)" stroke="var(--border)"/>
+        <path d="M152 224l30-22 26 12 28-30 26 16 34-34" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="152" cy="224" r="3" fill="var(--accent)"/><circle cx="322" cy="166" r="3" fill="var(--accent)"/>
       </svg>
       <h2 style="margin-top:26px;font-size:17px">Everything for a semester, in one workspace</h2>
       <p class="sub" style="margin-top:8px">Track topic-level progress, share notes with your cohort, drill flashcards,
@@ -319,8 +364,24 @@
   </div>
   <div class="auth-form">
     <div class="box">
+      <div class="row" style="justify-content:flex-end;margin-bottom:14px">
+        <div class="theme-toggle" id="themeToggleAuth" role="group" aria-label="Colour theme">
+      <button data-theme-choice="light" title="Light" aria-label="Light theme">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round">
+          <circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/></svg>
+      </button>
+      <button data-theme-choice="system" title="Match system" aria-label="Match system theme">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+      </button>
+      <button data-theme-choice="dark" title="Dark" aria-label="Dark theme">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 13a8.5 8.5 0 01-10-10 8.5 8.5 0 1010 10z"/></svg>
+      </button>
+    </div>
+      </div>
       <div id="verifiedBanner" class="hidden" style="margin-bottom:16px;padding:11px 14px;background:var(--pos-bg);
-           border:1px solid #abefc6;border-radius:var(--r-md);color:var(--pos);font-size:13px;font-weight:500"></div>
+           border:1px solid color-mix(in srgb, var(--pos) 35%, transparent);border-radius:var(--r-md);color:var(--pos);font-size:13px;font-weight:500"></div>
 
       <!-- sign in / register form -->
       <div id="authForm">
@@ -452,6 +513,23 @@
     <div class="nav-label">Workspace</div>
     <nav class="nav" id="nav"></nav>
     <div class="side-foot">
+      <div class="row" style="justify-content:space-between;margin-bottom:10px">
+        <span class="sub" style="font-size:11.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase">Theme</span>
+        <div class="theme-toggle" id="themeToggle" role="group" aria-label="Colour theme">
+      <button data-theme-choice="light" title="Light" aria-label="Light theme">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round">
+          <circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/></svg>
+      </button>
+      <button data-theme-choice="system" title="Match system" aria-label="Match system theme">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+      </button>
+      <button data-theme-choice="dark" title="Dark" aria-label="Dark theme">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 13a8.5 8.5 0 01-10-10 8.5 8.5 0 1010 10z"/></svg>
+      </button>
+    </div>
+      </div>
       <div class="me" onclick="go('profile')">
         <div class="avatar" id="navAvatar" style="width:36px;height:36px;font-size:14px"></div>
         <div style="min-width:0">
@@ -467,6 +545,44 @@
 <div id="modalHost"></div>
 
 <script>
+// ===================== theme =====================
+// Three states: follow the system, or pin light/dark. The choice is a display
+// preference, so localStorage is the right home for it — nothing sensitive.
+const THEME_KEY = 'studyhub-theme';
+const systemPrefersDark = () => window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
+
+function readThemeChoice() {
+  try {
+    const saved = localStorage.getItem(THEME_KEY);
+    return ['light', 'dark', 'system'].includes(saved) ? saved : 'system';
+  } catch { return 'system'; }   // private mode blocks storage; fall back gracefully
+}
+
+function applyTheme(choice = readThemeChoice()) {
+  const resolved = choice === 'system' ? (systemPrefersDark() ? 'dark' : 'light') : choice;
+  document.documentElement.setAttribute('data-theme', resolved);
+  document.documentElement.style.colorScheme = resolved;
+  document.querySelectorAll('[data-theme-choice]').forEach(btn => {
+    btn.classList.toggle('on', btn.dataset.themeChoice === choice);
+  });
+  return resolved;
+}
+
+function setTheme(choice) {
+  try { localStorage.setItem(THEME_KEY, choice); } catch { /* preference just won't persist */ }
+  applyTheme(choice);
+}
+
+// Applied before anything renders, so there is no flash of the wrong theme.
+applyTheme();
+document.addEventListener('click', e => {
+  const btn = e.target.closest?.('[data-theme-choice]');
+  if (btn) setTheme(btn.dataset.themeChoice);
+});
+// Follow the OS while the choice is "system", including a live switch at sunset.
+window.matchMedia?.('(prefers-color-scheme: dark)')
+  .addEventListener?.('change', () => { if (readThemeChoice() === 'system') applyTheme('system'); });
+
 // ===================== helpers =====================
 const API = '/api';
 let token = null, me = null, view = 'home', ctx = {};
@@ -501,13 +617,13 @@ function avatarHtml(user, size, cls = '') {
 function emptyArt(text) {
   return `<div class="empty">
     <svg viewBox="0 0 200 150" fill="none">
-      <rect x="56" y="30" width="88" height="92" rx="6" fill="#fcfcfd" stroke="#e4e7ec"/>
-      <rect x="70" y="50" width="60" height="7" rx="3.5" fill="#eaecf0"/>
-      <rect x="70" y="66" width="44" height="7" rx="3.5" fill="#f2f4f7"/>
-      <rect x="70" y="82" width="52" height="7" rx="3.5" fill="#f2f4f7"/>
-      <rect x="70" y="98" width="34" height="7" rx="3.5" fill="#f2f4f7"/>
-      <circle cx="141" cy="38" r="13" fill="#eef0fb" stroke="#c7cbf3"/>
-      <path d="M136 38h10M141 33v10" stroke="#3538cd" stroke-width="2" stroke-linecap="round"/></svg>
+      <rect x="56" y="30" width="88" height="92" rx="6" fill="var(--surface-2)" stroke="var(--border)"/>
+      <rect x="70" y="50" width="60" height="7" rx="3.5" fill="var(--border)"/>
+      <rect x="70" y="66" width="44" height="7" rx="3.5" fill="var(--surface-2)"/>
+      <rect x="70" y="82" width="52" height="7" rx="3.5" fill="var(--surface-2)"/>
+      <rect x="70" y="98" width="34" height="7" rx="3.5" fill="var(--surface-2)"/>
+      <circle cx="141" cy="38" r="13" fill="var(--accent-2)" stroke="var(--accent-3)"/>
+      <path d="M136 38h10M141 33v10" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/></svg>
     <p>${esc(text)}</p></div>`;
 }
 function needCourseModal(what) {
@@ -723,7 +839,7 @@ let resetToken = null;
   if (googleError && googleError !== '1' && googleError !== 'classroom') {
     const el = $('verifiedBanner');
     el.classList.remove('hidden');
-    el.style.background = 'var(--warn-bg)'; el.style.borderColor = '#fedf89'; el.style.color = 'var(--warn)';
+    el.style.background = 'var(--warn-bg)'; el.style.borderColor = 'color-mix(in srgb, var(--warn) 35%, transparent)'; el.style.color = 'var(--warn)';
     // ?reason= carries Google's own error code, which names the misconfiguration
     const reason = params.get('reason');
     const reasons = {
@@ -759,7 +875,7 @@ let resetToken = null;
     } else {
       el.textContent = 'That verification link is invalid or has already been used.';
       el.style.background = 'var(--warn-bg)';
-      el.style.borderColor = '#fedf89';
+      el.style.borderColor = 'color-mix(in srgb, var(--warn) 35%, transparent)';
       el.style.color = 'var(--warn)';
     }
   }
@@ -1551,7 +1667,7 @@ function paintTimer() {
   if (ring) {
     const c = 2 * Math.PI * 88;
     ring.setAttribute('stroke-dashoffset', String(c * (1 - timer.left / timer.total)));
-    ring.setAttribute('stroke', timer.mode === 'break' ? '#17a673' : '#6c5ce7');
+    ring.classList.toggle('break', timer.mode === 'break');
   }
   if ($('tBtn')) $('tBtn').textContent = timer.running ? 'Pause' : (timer.left < timer.total ? 'Resume' : 'Start');
   if ($('tElapsed')) $('tElapsed').textContent = timer.elapsed >= 60 ? `${Math.floor(timer.elapsed / 60)} min counted so far` : 'Under a minute so far';
@@ -1584,7 +1700,7 @@ async function renderTimer() {
     <div class="page-head"><div><h1>Study timer</h1>
       <p class="sub">Focus blocks are logged automatically. Stopping early still records the minutes completed.</p></div></div>
 
-    ${timer.lastMsg ? `<div class="card" style="background:var(--pos-bg);border-color:#abefc6;padding:12px 16px">
+    ${timer.lastMsg ? `<div class="card" style="background:var(--pos-bg);border-color:color-mix(in srgb, var(--pos) 35%, transparent);padding:12px 16px">
       <div class="spread"><span style="font-weight:500;color:var(--pos)">${esc(timer.lastMsg)}</span>
       <button class="btn ghost sm" onclick="timer.lastMsg='';go('timer')">Dismiss</button></div></div>` : ''}
 
@@ -1599,8 +1715,8 @@ async function renderTimer() {
         </div>
         <div class="timer-ring">
           <svg viewBox="0 0 200 200" width="230" height="230">
-            <circle cx="100" cy="100" r="88" fill="none" stroke="#f0eefb" stroke-width="14"/>
-            <circle id="ring" cx="100" cy="100" r="88" fill="none" stroke="#6c5ce7" stroke-width="14" stroke-linecap="round"
+            <circle cx="100" cy="100" r="88" fill="none" stroke="var(--surface-2)" stroke-width="14"/>
+            <circle id="ring" cx="100" cy="100" r="88" fill="none" stroke-width="14" stroke-linecap="round"
               stroke-dasharray="${2 * Math.PI * 88}" stroke-dashoffset="0" transform="rotate(-90 100 100)"/>
           </svg>
           <div class="t" id="clock">${mmss(timer.left)}</div>
@@ -2200,9 +2316,9 @@ async function renderPlan() {
       <div class="stat ${plan.warnings.length ? 's-peach' : 's-mint'}"><div class="n">${plan.warnings.length}</div><div class="l">at risk</div></div>
     </div>
 
-    ${plan.warnings.length ? `<div class="card" style="background:var(--warn-bg);border-color:#fedf89;margin-bottom:16px">
+    ${plan.warnings.length ? `<div class="card" style="background:var(--warn-bg);border-color:color-mix(in srgb, var(--warn) 35%, transparent);margin-bottom:16px">
       <h2 style="color:var(--warn);margin-bottom:8px">Tight on time</h2>
-      ${plan.warnings.map(w => `<div class="todo" style="border-color:#fedf89">
+      ${plan.warnings.map(w => `<div class="todo" style="border-color:color-mix(in srgb, var(--warn) 35%, transparent)">
           <div style="flex:1"><span style="font-weight:500">${esc(w.title)}</span>
             <div class="sub" style="font-size:12px">${esc(w.reason)}</div></div>
         </div>`).join('')}
