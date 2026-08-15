@@ -217,6 +217,23 @@
   }
   .btn-google:hover { background: var(--surface-2); }
 
+  /* ---------- syllabus ---------- */
+  .unit-head { display: flex; align-items: center; gap: 10px; padding: 10px 0 8px; border-bottom: 1px solid var(--border); }
+  .unit-head h3 { flex: 1; }
+  .topic-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border); }
+  .topic-row:last-child { border-bottom: 0; }
+  .mastery { display: inline-flex; gap: 2px; }
+  .mastery button { border: 1px solid var(--border-2); background: var(--surface); color: var(--ink-3);
+                    font-size: 11.5px; padding: 3px 8px; cursor: pointer; }
+  .mastery button:first-child { border-radius: 5px 0 0 5px; }
+  .mastery button:last-child { border-radius: 0 5px 5px 0; }
+  .mastery button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .mastery button.on.done { background: var(--pos); border-color: var(--pos); }
+  .diff { display: inline-flex; gap: 2px; align-items: center; }
+  .diff i { width: 6px; height: 6px; border-radius: 50%; background: var(--border-2); display: block; }
+  .diff i.on { background: var(--warn); }
+  .scope-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; }
+
   /* ---------- study plan ---------- */
   .plan-day { border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); padding: 14px 16px; }
   .plan-day.today { border-color: var(--accent-3); box-shadow: 0 0 0 3px var(--accent-2); }
@@ -1006,11 +1023,10 @@ async function enroll(id) { await api(`/courses/${id}/enroll`, { method: 'POST' 
 // ===================== course detail =====================
 async function renderCourse() {
   const id = ctx.id;
-  const [topics, notes, decks, asg] = await Promise.all([
-    api(`/progress/${id}`), api(`/notes?courseId=${id}`), api(`/decks?courseId=${id}`), api(`/assignments?courseId=${id}`),
+  const [syllabus, notes, decks, asg] = await Promise.all([
+    api(`/syllabus?courseId=${id}`), api(`/notes?courseId=${id}`), api(`/decks?courseId=${id}`), api(`/assignments?courseId=${id}`),
   ]);
-  const done = topics.filter(t => t.status === 'completed').length;
-  const pct = topics.length ? Math.round(done / topics.length * 100) : 0;
+  const pct = syllabus.summary.coveragePct;
 
   $('main').innerHTML = `
     <button class="btn ghost sm" onclick="go('courses')">← Courses</button>
@@ -1025,23 +1041,24 @@ async function renderCourse() {
     </div>
 
     <div class="tabs" style="margin-top:20px">
-      <button class="on" onclick="courseTab(this,'tProg')">Progress</button>
+      <button class="on" onclick="courseTab(this,'tProg')">Syllabus (${syllabus.summary.total})</button>
       <button onclick="courseTab(this,'tNotes')">Notes (${notes.length})</button>
       <button onclick="courseTab(this,'tDecks')">Flashcards (${decks.length})</button>
       <button onclick="courseTab(this,'tAsg')">Deadlines (${asg.filter(a => a.status === 'pending').length})</button>
     </div>
 
     <div id="tProg" class="card">
-      <h2 style="margin-bottom:14px">Topics</h2>
-      ${topics.map(t => `<div class="todo">
-          <div style="flex:1"><div class="t" style="font-weight:600">${esc(t.topic)}</div></div>
-          <select style="width:auto" onchange="setStatus('${esc(t.topic).replace(/'/g, "\\'")}', this.value)">
-            ${['not_started', 'in_progress', 'completed'].map(s => `<option value="${s}" ${s === t.status ? 'selected' : ''}>${{ not_started: 'Not started', in_progress: 'In progress', completed: 'Completed' }[s]}</option>`).join('')}
-          </select>
-          <button class="btn ghost sm icon" onclick="delTopic(${t.id})">Remove</button>
-        </div>`).join('') || emptyArt('No topics tracked yet.')}
-      <div class="row" style="margin-top:16px"><input id="newTopic" placeholder="Add a topic, e.g. Normalization" style="flex:1" />
-        <button class="btn" onclick="addTopic()">Add</button></div>
+      <div class="spread" style="margin-bottom:14px">
+        <h2>Syllabus</h2>
+        <button class="btn ghost sm" onclick="pasteSyllabusModal()">Paste syllabus</button>
+      </div>
+      ${syllabusHtml(syllabus)}
+      <div class="row" style="margin-top:16px">
+        <input id="newUnit" placeholder="Unit (optional)" style="width:150px" />
+        <input id="newTopic" placeholder="Add a topic, e.g. Normalization" style="flex:1" />
+        <button class="btn" onclick="addTopic()">Add</button>
+      </div>
+      <p class="sub" style="font-size:12px;margin-top:8px">Difficulty and mastery decide how much revision time the planner reserves.</p>
     </div>
 
     <div id="tNotes" class="card hidden">
@@ -1070,6 +1087,124 @@ function courseTab(btn, id) {
   [...btn.parentElement.children].forEach(b => b.classList.remove('on'));
   btn.classList.add('on');
   ['tProg', 'tNotes', 'tDecks', 'tAsg'].forEach(t => $(t).classList.toggle('hidden', t !== id));
+}
+
+// ---- syllabus ----
+const MASTERY_STEPS = [
+  ['not_started', 'New'], ['learning', 'Learning'], ['revised', 'Revised'], ['mastered', 'Mastered'],
+];
+
+function difficultyDots(topic) {
+  return `<span class="diff" title="Difficulty ${topic.difficulty}/5"
+    onclick="cycleDifficulty(${topic.id}, ${topic.difficulty})" style="cursor:pointer">
+    ${[1, 2, 3, 4, 5].map(n => `<i class="${n <= topic.difficulty ? 'on' : ''}"></i>`).join('')}</span>`;
+}
+
+function topicRow(t) {
+  return `<div class="topic-row">
+    <div style="flex:1;min-width:0">
+      <div style="font-weight:500;font-size:13.5px">${esc(t.title)}</div>
+      ${t.course_code ? `<div class="sub" style="font-size:11.5px">${esc(t.course_code)}</div>` : ''}
+    </div>
+    ${difficultyDots(t)}
+    <span class="mastery">
+      ${MASTERY_STEPS.map(([value, label]) => `<button class="${t.status === value ? 'on' + (value === 'mastered' ? ' done' : '') : ''}"
+        onclick="setTopicStatus(${t.id}, '${value}')">${label}</button>`).join('')}
+    </span>
+    <button class="btn ghost sm icon" onclick="delTopic(${t.id})">Remove</button>
+  </div>`;
+}
+
+function syllabusHtml(data) {
+  if (!data.topics.length) {
+    return `${emptyArt('No syllabus yet for this course.')}
+      <p class="sub" style="text-align:center">Paste your syllabus and StudyHub will split it into units and topics,
+        then plan your revision around them.</p>`;
+  }
+  return `
+    <div class="spread" style="margin-bottom:12px">
+      <div><span class="sub">${data.summary.covered} of ${data.summary.total} topics revised or mastered</span></div>
+      <span class="pill ${data.summary.coveragePct >= 70 ? 'p-mint' : data.summary.coveragePct >= 40 ? 'p-sky' : 'p-peach'}">
+        ${data.summary.coveragePct}% covered</span>
+    </div>
+    <div class="bar" style="margin-bottom:16px"><i style="width:${data.summary.coveragePct}%"></i></div>
+    ${data.units.map(u => `
+      <div style="margin-bottom:18px">
+        <div class="unit-head"><h3>${esc(u.unit)}</h3>
+          <span class="sub" style="font-size:12px">${u.topics.length} topic${u.topics.length === 1 ? '' : 's'}</span></div>
+        ${u.topics.map(topicRow).join('')}
+      </div>`).join('')}`;
+}
+
+async function setTopicStatus(id, status) {
+  await api(`/syllabus/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) });
+  go(view, ctx);
+}
+async function cycleDifficulty(id, current) {
+  const next = current >= 5 ? 1 : current + 1;
+  await api(`/syllabus/${id}`, { method: 'PATCH', body: JSON.stringify({ difficulty: next }) });
+  go(view, ctx);
+}
+async function delTopic(id) {
+  await api(`/syllabus/${id}`, { method: 'DELETE' });
+  go(view, ctx);
+}
+
+async function addTopic() {
+  const input = $('newTopic');
+  if (!input.value.trim()) return;
+  await api('/syllabus', { method: 'POST', body: JSON.stringify({
+    courseId: ctx.id, title: input.value.trim(), unit: val('newUnit') || undefined,
+  })});
+  input.value = '';
+  go('course', ctx);
+}
+
+function pasteSyllabusModal() {
+  modal(`<h2>Paste your syllabus</h2>
+    <p class="sub" style="margin:6px 0 14px">Copy it straight from the course handbook or PDF.
+      Unit headings, bullets and numbering are all understood.</p>
+    <textarea id="sylText" style="min-height:190px;font-family:ui-monospace,monospace;font-size:12.5px"
+      placeholder="Unit 1 - Introduction&#10;- Database concepts&#10;- ER modelling&#10;&#10;Unit 2 - Normalization&#10;- 1NF, 2NF, 3NF&#10;- BCNF"></textarea>
+    <div class="err" id="sylErr"></div>
+    <div class="row" style="justify-content:flex-end;margin-top:10px">
+      <button class="btn ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn" onclick="previewSyllabus()">Read it</button></div>`);
+}
+
+let syllabusRows = [];
+async function previewSyllabus() {
+  try {
+    const r = await api('/syllabus/preview', { method: 'POST', body: JSON.stringify({ text: val('sylText') }) });
+    if (!r.topics.length) { $('sylErr').textContent = 'No topics found in that text.'; return; }
+    syllabusRows = r.topics;
+    modal(`<h2>Found ${r.count} topic${r.count === 1 ? '' : 's'}</h2>
+      <p class="sub" style="margin:6px 0 12px">${r.units.length
+        ? `Grouped into ${r.units.length} unit${r.units.length === 1 ? '' : 's'}.`
+        : 'No unit headings found — they will be added ungrouped.'} Untick anything you don't need.</p>
+      <div style="max-height:320px;overflow:auto;border:1px solid var(--border);border-radius:var(--r-md);padding:10px">
+        ${r.topics.map((t, i) => `<div class="scope-row">
+          <input type="checkbox" class="sylPick" data-i="${i}" checked style="width:auto" />
+          <div style="flex:1"><span style="font-weight:500">${esc(t.title)}</span>
+            ${t.unit ? `<span class="sub" style="font-size:11.5px"> · ${esc(t.unit)}</span>` : ''}</div>
+        </div>`).join('')}
+      </div>
+      <div class="err" id="sylErr2"></div>
+      <div class="row" style="justify-content:flex-end;margin-top:12px">
+        <button class="btn ghost" onclick="closeModal()">Cancel</button>
+        <button class="btn" onclick="importSyllabus()">Add to syllabus</button></div>`);
+  } catch (e) { $('sylErr').textContent = e.message; }
+}
+
+async function importSyllabus() {
+  const picked = [...document.querySelectorAll('.sylPick')].filter(c => c.checked)
+    .map(c => syllabusRows[Number(c.dataset.i)]);
+  if (!picked.length) { $('sylErr2').textContent = 'Nothing selected.'; return; }
+  try {
+    await api('/syllabus/import', { method: 'POST', body: JSON.stringify({ courseId: ctx.id, topics: picked }) });
+    closeModal();
+    go('course', ctx);
+  } catch (e) { $('sylErr2').textContent = e.message; }
 }
 async function addTopic() {
   const t = val('newTopic'); if (!t) return;
@@ -2050,14 +2185,16 @@ async function renderPlan() {
   $('main').innerHTML = `
     <div class="page-head">
       <div><h1>Study plan</h1>
-        <p class="sub">Built backwards from your deadlines and exams, ${fmtMin(plan.dailyMinutes)} a day.</p></div>
+        <p class="sub">Built backwards from your deadlines and exam syllabus, ${fmtMin(plan.dailyMinutes)} a day.
+          Harder and less-revised topics get more time.</p></div>
       <div class="row">
         ${[7, 14, 30].map(d => `<button class="btn ${days === d ? 'soft' : 'ghost'} sm" onclick="go('plan',{days:${d}})">${d} days</button>`).join('')}
       </div>
     </div>
 
     <div class="grid g-4" style="margin-bottom:16px">
-      <div class="stat s-lav"><div class="n">${plan.totals.items}</div><div class="l">deadlines ahead</div></div>
+      <div class="stat s-lav"><div class="n">${plan.totals.items}</div>
+        <div class="l">${plan.totals.topics ? `study items · ${plan.totals.topics} topics` : 'deadlines ahead'}</div></div>
       <div class="stat s-mint"><div class="n">${hours(plan.totals.scheduledMinutes)}</div><div class="l">scheduled</div></div>
       <div class="stat s-sky"><div class="n">${hours(plan.totals.requiredMinutes)}</div><div class="l">estimated work</div></div>
       <div class="stat ${plan.warnings.length ? 's-peach' : 's-mint'}"><div class="n">${plan.warnings.length}</div><div class="l">at risk</div></div>
@@ -2070,6 +2207,17 @@ async function renderPlan() {
             <div class="sub" style="font-size:12px">${esc(w.reason)}</div></div>
         </div>`).join('')}
       <p class="sub" style="font-size:12.5px;margin-top:10px">Raise your daily goal in Profile, or start earlier.</p>
+    </div>` : ''}
+
+    ${plan.exams?.length ? `<div class="card" style="margin-bottom:16px">
+      <h2 style="margin-bottom:10px">Exams being revised for</h2>
+      ${plan.exams.map(e => `<div class="todo">
+        <div style="flex:1"><span style="font-weight:500">${esc(e.title)}</span>
+          <div class="sub" style="font-size:12px">${e.courseCode ? esc(e.courseCode) + ' · ' : ''}${fmtDate(e.due)} ·
+            ${e.topicCount ? `${e.topicCount} topics` : 'no syllabus yet'}</div></div>
+        <span class="pill ${e.portionSet ? 'p-lav' : 'p-peach'}">${e.portionSet ? 'Portion set' : 'Whole syllabus'}</span>
+        <button class="btn ghost sm" onclick="portionModal(${e.id})">Change</button>
+      </div>`).join('')}
     </div>` : ''}
 
     ${plan.totals.items === 0 ? `<div class="card">${emptyArt('No upcoming deadlines or exams to plan around.')}
@@ -2087,10 +2235,14 @@ async function renderPlan() {
                                : '<span class="sub" style="font-size:12px">free</span>'}
             </div>
             ${d.blocks.map(b => `<div class="plan-block">
-                <div class="plan-bar ${b.type}"></div>
+                <div class="plan-bar ${b.type === 'assignment' ? '' : 'exam'}"></div>
                 <div style="flex:1;min-width:0">
                   <div style="font-weight:500;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(b.title)}</div>
-                  <div class="sub" style="font-size:11.5px">${b.courseCode ? esc(b.courseCode) + ' · ' : ''}${b.type} · ${b.daysLeft}d left</div>
+                  <div class="sub" style="font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+                    ${b.courseCode ? esc(b.courseCode) + ' · ' : ''}${b.type === 'topic'
+                      ? `${b.unit ? esc(b.unit) + ' · ' : ''}for ${esc(b.examTitle || 'exam')}`
+                      : b.type}${' · ' + b.daysLeft + 'd left'}
+                  </div>
                 </div>
                 <span class="sub" style="font-size:12px;font-weight:500">${b.minutes}m</span>
               </div>`).join('')}
@@ -2131,19 +2283,30 @@ async function renderExams() {
     <div class="card">
       <h2 style="margin-bottom:12px">Upcoming</h2>
       ${exams.length ? `<table><thead><tr>
-          <th>Exam</th><th>Course</th><th>Date</th><th>Time</th><th class="num">Counts as</th><th class="num">Away</th><th></th>
+          <th>Exam</th><th>Course</th><th>Date</th><th class="num">Counts as</th>
+          <th>Portion</th><th class="num">Ready</th><th class="num">Away</th><th></th>
         </tr></thead><tbody>
         ${exams.map(e => `<tr>
-          <td style="font-weight:500">${esc(e.title)}</td>
+          <td style="font-weight:500">${esc(e.title)}
+            ${e.starts_at ? `<div class="sub" style="font-size:11.5px">${String(e.starts_at).slice(0, 5)}</div>` : ''}</td>
           <td>${e.course_code ? `<span class="code-tag">${esc(e.course_code)}</span>` : '<span class="sub">—</span>'}</td>
           <td class="sub">${fmtDate(e.exam_date)}</td>
-          <td class="sub">${e.starts_at ? String(e.starts_at).slice(0, 5) : '—'}</td>
           <td class="num">${['', 'Quiz', 'Class test', 'Mid-sem', 'Practical', 'Finals'][e.weight] || e.weight}</td>
+          <td>${e.courseTopics === 0
+                ? '<span class="sub" style="font-size:12px">No syllabus yet</span>'
+                : `<button class="btn ghost sm" onclick="portionModal(${e.id})">
+                     ${e.topicCount ? `${e.topicCount} of ${e.courseTopics} topics` : 'Whole syllabus'}</button>`}</td>
+          <td class="num">${e.topicCount
+                ? `<span class="pill ${e.readyPct >= 70 ? 'p-mint' : e.readyPct >= 40 ? 'p-sky' : 'p-peach'}">${e.readyPct}%</span>`
+                : '<span class="sub">—</span>'}</td>
           <td class="num"><span class="pill ${e.days_left < 0 ? 'p-rose' : e.days_left <= 3 ? 'p-peach' : 'p-sky'}">
             ${e.days_left < 0 ? 'done' : e.days_left === 0 ? 'today' : e.days_left + 'd'}</span></td>
           <td class="num"><button class="btn ghost sm icon" onclick="delExam(${e.id})">Remove</button></td>
         </tr>`).join('')}
-      </tbody></table>` : emptyArt('No exams added yet.')}
+      </tbody></table>
+      <p class="sub" style="font-size:12px;margin-top:10px">
+        "Portion" is what's actually examinable. Leave it unset and the planner revises the whole syllabus.</p>`
+      : emptyArt('No exams added yet.')}
     </div>`;
 }
 
@@ -2159,6 +2322,62 @@ async function addExam() {
   } catch (e) { err.textContent = e.message; }
 }
 async function delExam(id) { await api(`/exams/${id}`, { method: 'DELETE' }); go('exams'); }
+
+async function portionModal(examId) {
+  const data = await api(`/exams/${examId}/topics`);
+  if (!data.units.length) {
+    modal(`<h2>No syllabus for this course</h2>
+      <p class="sub" style="margin:8px 0 16px">${esc(data.note || 'Add the syllabus on the course page first, then choose the portion here.')}</p>
+      <div class="row" style="justify-content:flex-end"><button class="btn" onclick="closeModal()">Close</button></div>`);
+    return;
+  }
+  modal(`<h2>Portion for ${esc(data.exam.title)}</h2>
+    <p class="sub" style="margin:6px 0 12px">Tick what's examinable. ${data.inScope === 0
+      ? 'Nothing is ticked, so the whole syllabus is being planned.'
+      : `${data.inScope} of ${data.total} topics selected.`}</p>
+    <div class="row" style="margin-bottom:10px">
+      <button class="btn ghost sm" onclick="pickAllTopics(true)">Select all</button>
+      <button class="btn ghost sm" onclick="pickAllTopics(false)">Clear</button>
+    </div>
+    <div style="max-height:340px;overflow:auto;border:1px solid var(--border);border-radius:var(--r-md);padding:12px">
+      ${data.units.map((u, ui) => `
+        <div style="margin-bottom:14px">
+          <div class="unit-head" style="padding-top:0">
+            <h3>${esc(u.unit)}</h3>
+            <button class="btn ghost sm" onclick="pickUnit(${ui})">Toggle unit</button>
+          </div>
+          ${u.topics.map(t => `<div class="scope-row">
+            <input type="checkbox" class="scopePick u${ui}" value="${t.id}" ${t.inScope ? 'checked' : ''} style="width:auto" />
+            <div style="flex:1">
+              <span style="font-weight:500;font-size:13.5px">${esc(t.title)}</span>
+              <span class="pill ${t.status === 'mastered' ? 'p-mint' : t.status === 'revised' ? 'p-sky' : t.status === 'learning' ? 'p-peach' : 'p-lav'}"
+                    style="margin-left:8px">${MASTERY_STEPS.find(m => m[0] === t.status)?.[1] || t.status}</span>
+            </div>
+            <span class="diff">${[1,2,3,4,5].map(n => `<i class="${n <= t.difficulty ? 'on' : ''}"></i>`).join('')}</span>
+          </div>`).join('')}
+        </div>`).join('')}
+    </div>
+    <div class="err" id="scopeErr"></div>
+    <div class="row" style="justify-content:flex-end;margin-top:12px">
+      <button class="btn ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn" onclick="savePortion(${examId})">Save portion</button></div>`);
+}
+
+const pickAllTopics = on => document.querySelectorAll('.scopePick').forEach(c => { c.checked = on; });
+function pickUnit(unitIndex) {
+  const boxes = [...document.querySelectorAll('.scopePick.u' + unitIndex)];
+  const turnOn = boxes.some(b => !b.checked);
+  boxes.forEach(b => { b.checked = turnOn; });
+}
+
+async function savePortion(examId) {
+  const topicIds = [...document.querySelectorAll('.scopePick')].filter(c => c.checked).map(c => Number(c.value));
+  try {
+    await api(`/exams/${examId}/topics`, { method: 'PUT', body: JSON.stringify({ topicIds }) });
+    closeModal();
+    go('exams');
+  } catch (e) { $('scopeErr').textContent = e.message; }
+}
 
 function pasteTimetableModal() {
   modal(`<h2>Paste your exam timetable</h2>

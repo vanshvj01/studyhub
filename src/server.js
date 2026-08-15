@@ -42,6 +42,7 @@ app.use('/api/referrals', require('./routes/referrals'));
 app.use('/api/chat', require('./routes/chat'));   // includes /api/chat/rooms/*
 app.use('/api/exams', require('./routes/exams'));
 app.use('/api/plan', require('./routes/plan'));
+app.use('/api/syllabus', require('./routes/syllabus'));
 app.use('/api/classroom', require('./routes/classroom'));
 
 // Used by the host's health check, and to wake the instance after it sleeps

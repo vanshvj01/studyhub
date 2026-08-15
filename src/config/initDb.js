@@ -96,6 +96,34 @@ async function backfillAccounts(conn) {
   logger.info('backfilled accounts', { rows: rows.length });
 }
 
+/**
+ * The old `progress` table held one row per (user, course, topic) with a status.
+ * The syllabus supersedes it, so those rows are copied across once — nothing is
+ * lost, and the tracker a student already filled in keeps working.
+ */
+async function migrateProgressToSyllabus(conn) {
+  const [[{ n }]] = await conn.query('SELECT COUNT(*) AS n FROM syllabus_topics');
+  if (n > 0) return;                                   // already migrated
+
+  const [rows] = await conn.query('SELECT user_id, course_id, topic, status FROM progress ORDER BY id');
+  if (rows.length === 0) return;
+
+  const statusMap = { not_started: 'not_started', in_progress: 'learning', completed: 'mastered' };
+  const orderByCourse = new Map();
+
+  for (const row of rows) {
+    const key = `${row.user_id}:${row.course_id}`;
+    const order = orderByCourse.get(key) ?? 0;
+    orderByCourse.set(key, order + 1);
+    await conn.query(
+      `INSERT IGNORE INTO syllabus_topics (user_id, course_id, title, order_index, status)
+       VALUES (?, ?, ?, ?, ?)`,
+      [row.user_id, row.course_id, row.topic, order, statusMap[row.status] || 'not_started']
+    );
+  }
+  logger.info('migrated progress rows into the syllabus', { rows: rows.length });
+}
+
 async function initDb() {
   const database = process.env.MYSQL_DATABASE || 'studyhub';
   const conn = await mysql.createConnection(mysqlConfig({ database, multipleStatements: true }));
@@ -129,6 +157,7 @@ async function initDb() {
     }
 
     await backfillAccounts(conn);
+    await migrateProgressToSyllabus(conn);
 
     for (const [table, index, sql] of INDEX_MIGRATIONS) {
       if (!(await hasIndex(conn, database, table, index))) {

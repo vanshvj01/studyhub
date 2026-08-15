@@ -20,7 +20,9 @@ No build step and no frontend framework — the client is a single self-containe
 - **Grades** — log marks with weights; weighted per-course averages, letter grades and an overall percentage
 - **Leaderboard** — weekly study-minute ranking across everyone on the platform
 - **Global search** — one box across courses (MySQL) and notes + decks (MongoDB)
-- **Study plan** — schedules backwards from every deadline and exam, respecting your daily goal, and flags work that cannot fit in the time left
+- **Syllabus** — paste a course syllabus and it is split into units and topics; each topic carries a difficulty and a mastery level (new → learning → revised → mastered)
+- **Exam portions** — tick which topics are examinable for a given exam; leave it unset and the whole syllabus is planned
+- **Study plan** — schedules backwards from every deadline **and topic-by-topic through each exam's portion**, giving harder and less-revised topics more time, respecting your daily goal, and flagging work that cannot fit in the time left
 - **Exams** — added by hand or by pasting a timetable in almost any date format; a preview step shows what was parsed before anything is saved
 - **Google Classroom import** — read-only sync of courses, coursework deadlines and announcements, running automatically in the background so new assignments appear without anyone pressing import ([setup](GOOGLE.md))
 - **Sign in with Google**, or with a username, email address or phone number
@@ -54,7 +56,7 @@ No build step and no frontend framework — the client is a single self-containe
 npm test        # node --test, no external test framework
 ```
 
-86 tests covering the study planner (capacity limits, deadline ordering, impossible workloads), timetable parsing across six date formats, phone normalisation, account rules, email templating and transport selection, (usernames, emails, passwords, invite-code alphabet), the validation layer, streak edge cases (gaps, stale streaks, duplicate days), weighted grade maths, upload MIME/size rejection, and environment validation in isolated processes.
+107 tests covering the study planner (capacity limits, deadline ordering, topic effort by difficulty and mastery, impossible workloads), syllabus parsing (units, roman numerals, bullets, inline topic lists), timetable parsing across six date formats, phone normalisation, account rules, email templating and transport selection, (usernames, emails, passwords, invite-code alphabet), the validation layer, streak edge cases (gaps, stale streaks, duplicate days), weighted grade maths, upload MIME/size rejection, and environment validation in isolated processes.
 
 ## Architecture
 
@@ -171,7 +173,13 @@ All routes except `/api/auth/*` and `/api/health` require `Authorization: Bearer
 | GET | /api/exams | Upcoming exams |
 | POST | /api/exams/preview | Parse a pasted timetable without saving |
 | POST | /api/exams/import | Save selected parsed exams |
-| GET | /api/plan?days= | Day-by-day study schedule |
+| GET | /api/plan?days= | Day-by-day study schedule, topic by topic |
+| GET | /api/syllabus?courseId= | Topics grouped by unit, with coverage |
+| POST | /api/syllabus/preview | Parse a pasted syllabus without saving |
+| POST | /api/syllabus/import | Add parsed topics to a course |
+| PATCH | /api/syllabus/:id | Change mastery, difficulty, title or unit |
+| GET | /api/exams/:id/topics | Syllabus flagged with what is in the portion |
+| PUT | /api/exams/:id/topics | Set the portion for an exam |
 | GET | /api/classroom/status | Connection state and import counts |
 | POST | /api/classroom/sync | Import from Google Classroom now |
 | PATCH | /api/classroom/settings | Turn automatic importing on or off |

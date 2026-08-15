@@ -247,6 +247,22 @@ Five ideas. Everything else is detail.
 
 ---
 
+## Milestone 9.5 — Modelling a syllabus
+
+**Goal:** learn why a flat list of "topics" stops being enough.
+
+The first version of this project had a `progress` table: `(user, course, topic, status)`.
+It worked until the planner needed to answer "how long should I spend on this?" —
+which needs difficulty, how well it's already known, and which exam it's even for.
+
+The replacement, `syllabus_topics`, carries `unit`, `order_index`, `difficulty` and a
+four-step mastery state, plus an `exam_topics` join table for "the portion". Study the
+migration in `config/initDb.js`: existing rows are copied across so nobody loses data,
+and it only runs when the new table is empty.
+
+**Interview question you should be able to answer:** you changed a core table after
+users had data in it. How did you avoid losing any, and how would you roll back?
+
 ## Milestone 10 — Grades, flashcards, search
 
 **Goal:** turn requirements into small, testable functions.

@@ -128,3 +128,37 @@ CREATE TABLE IF NOT EXISTS exams (
   CONSTRAINT fk_exam_user   FOREIGN KEY (user_id)   REFERENCES users(id)   ON DELETE CASCADE,
   CONSTRAINT fk_exam_course FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
+
+-- ---------------------------------------------------------------------------
+-- Syllabus. One row per topic a student has to learn, grouped into units.
+-- This replaces the older flat `progress` table: same idea, but with the unit,
+-- ordering, difficulty and mastery the exam planner needs. Existing progress
+-- rows are migrated across on first boot.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS syllabus_topics (
+  id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id     INT UNSIGNED NOT NULL,
+  course_id   INT UNSIGNED NOT NULL,
+  unit        VARCHAR(120)  NULL,           -- "Unit 2", "Module 3", NULL if ungrouped
+  title       VARCHAR(200)  NOT NULL,
+  order_index SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  difficulty  TINYINT UNSIGNED NOT NULL DEFAULT 3,   -- 1 easy .. 5 hard
+  status      ENUM('not_started','learning','revised','mastered') NOT NULL DEFAULT 'not_started',
+  notes       VARCHAR(300) NULL,
+  updated_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_topic (user_id, course_id, title),
+  CONSTRAINT fk_topic_user   FOREIGN KEY (user_id)   REFERENCES users(id)   ON DELETE CASCADE,
+  CONSTRAINT fk_topic_course FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE INDEX idx_topics_course ON syllabus_topics (user_id, course_id, order_index);
+
+-- Which topics are actually in scope for a given exam ("the portion").
+CREATE TABLE IF NOT EXISTS exam_topics (
+  exam_id  INT UNSIGNED NOT NULL,
+  topic_id INT UNSIGNED NOT NULL,
+  PRIMARY KEY (exam_id, topic_id),
+  CONSTRAINT fk_et_exam  FOREIGN KEY (exam_id)  REFERENCES exams(id)           ON DELETE CASCADE,
+  CONSTRAINT fk_et_topic FOREIGN KEY (topic_id) REFERENCES syllabus_topics(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
