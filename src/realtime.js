@@ -3,6 +3,7 @@
 const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
 const { logger } = require('./lib/logger');
+const { parseCookies, COOKIE_NAME } = require('./lib/cookies');
 const { createMessage } = require('./routes/chat');
 const Message = require('./models/Message');
 const Room = require('./models/Room');
@@ -14,7 +15,9 @@ function attachRealtime(httpServer, app, corsOrigin = '*') {
 
   // Same JWT as the REST API — a socket is not a way around authentication.
   io.use((socket, next) => {
-    const token = socket.handshake.auth?.token;
+    // Same session as the REST API: explicit token first, cookie otherwise.
+    const token = socket.handshake.auth?.token
+      || parseCookies(socket.handshake.headers?.cookie)[COOKIE_NAME];
     if (!token) return next(new Error('Missing token'));
     try {
       const payload = jwt.verify(token, process.env.JWT_SECRET);

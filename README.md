@@ -34,6 +34,7 @@ No build step and no frontend framework — the client is a single self-containe
 ## Engineering notes
 
 - **Email delivery** (`src/lib/mailer.js`) — Resend over HTTP when `RESEND_API_KEY` is set, falling back to logging so local development needs no account, no SMTP and no extra dependency. A failed send never fails the signup: the account is created and the user can request a new link.
+- **Sessions survive a refresh without exposing the token** (`src/lib/cookies.js`) — the JWT is set as an `httpOnly`, `sameSite=lax`, https-only-in-production cookie, so JavaScript cannot read it and an XSS bug cannot steal a login. The `Authorization: Bearer` header still works for Postman and any API client, and the socket handshake accepts either. On load the client asks `/api/profile` and restores the session; a 401 simply shows the sign-in form.
 - **Account security** — unique usernames (case-insensitive), password rules enforced server-side, email verification before first sign-in, and identical responses for wrong-password and unknown-account so the API cannot be used to enumerate users. There is no mail server, so the verification link is written to the log and returned outside production.
 - **Roles** — `requireRole` middleware keeps parent accounts to a read-only surface: they can reach their children's summaries and nothing else. The same check runs on the socket handshake, so realtime is not a way around it.
 - **Validation layer** (`src/lib/validate.js`) — routes declare a schema instead of hand-rolling `if (!x)` checks, so every endpoint returns the same error shape: `{ error, errors[] }`. Unknown fields are dropped, which stops clients writing columns they shouldn't.
@@ -53,7 +54,7 @@ No build step and no frontend framework — the client is a single self-containe
 npm test        # node --test, no external test framework
 ```
 
-78 tests covering the study planner (capacity limits, deadline ordering, impossible workloads), timetable parsing across six date formats, phone normalisation, account rules, email templating and transport selection, (usernames, emails, passwords, invite-code alphabet), the validation layer, streak edge cases (gaps, stale streaks, duplicate days), weighted grade maths, upload MIME/size rejection, and environment validation in isolated processes.
+86 tests covering the study planner (capacity limits, deadline ordering, impossible workloads), timetable parsing across six date formats, phone normalisation, account rules, email templating and transport selection, (usernames, emails, passwords, invite-code alphabet), the validation layer, streak edge cases (gaps, stale streaks, duplicate days), weighted grade maths, upload MIME/size rejection, and environment validation in isolated processes.
 
 ## Architecture
 
@@ -164,6 +165,7 @@ All routes except `/api/auth/*` and `/api/health` require `Authorization: Bearer
 | GET | /api/search?q= | Search courses, notes and decks |
 | POST | /api/auth/forgot | Request a password reset link |
 | POST | /api/auth/reset | Set a new password from a reset token |
+| POST | /api/auth/logout | Clear the session cookie |
 | GET | /api/auth/providers | Which sign-in options this deployment has |
 | GET | /api/auth/google | Start Google OAuth (mode=signin or classroom) |
 | GET | /api/exams | Upcoming exams |

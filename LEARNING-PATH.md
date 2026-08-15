@@ -209,7 +209,7 @@ Five ideas. Everything else is detail.
 - **fetch + async/await** — how the browser calls your API.
 - **Render functions** — each "page" is a function that fetches data and writes HTML into one container. Navigation swaps which function runs; the page never reloads.
 - **XSS** — if you inject user text into HTML unescaped, a note titled `<script>...` runs as code. Look at the `esc()` helper and understand exactly what it prevents.
-- **Where the token lives** — the real app keeps the JWT in a JavaScript variable, so a refresh logs you out. Understand the trade-off: `localStorage` survives refreshes but is readable by any injected script.
+- **Where the token lives** — three options, and the reasoning matters more than the code. A JavaScript variable is safe but dies on refresh. `localStorage` survives but any injected script can read it. An `httpOnly` cookie survives *and* is invisible to JavaScript, at the cost of needing `sameSite` set so it isn't sent on cross-site requests. StudyHub ended up on the third, with the header still accepted for API clients.
 
 **Build it**
 1. Login form → store token → swap to the app shell.
@@ -221,7 +221,7 @@ Five ideas. Everything else is detail.
 
 **Interview questions**
 - What is XSS and where exactly is it prevented in your code?
-- Why does a refresh log the user out, and what would you change to fix it?
+- Where does the session token live, and what attack does each option expose you to?
 
 ---
 
@@ -328,7 +328,7 @@ Know these before someone finds them for you:
 
 1. **No rate limiting** — login can be brute-forced.
 2. **Base64 uploads** hold whole files in memory; a streaming parser would be correct.
-3. **No refresh tokens** — a stolen JWT is valid until it expires.
+3. **No refresh tokens** — a stolen JWT is valid until it expires. The httpOnly cookie makes stealing one much harder, but revocation is still not possible.
 4. **Orphaned Mongo documents** when a MySQL course is deleted.
 5. **Notes and decks are globally visible**, not scoped to enrolled students.
 6. **No pagination** — list endpoints cap with `LIMIT` instead of paging.

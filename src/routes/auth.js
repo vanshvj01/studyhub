@@ -2,6 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const { pool } = require('../config/db');
 const { signToken } = require('../middleware/auth');
+const { setAuthCookie, clearAuthCookie } = require('../lib/cookies');
 const { logger } = require('../lib/logger');
 const { shortCode, token: randomToken } = require('../lib/ids');
 const { sendVerification, sendPasswordReset, autoVerifyEnabled, transport } = require('../lib/mailer');
@@ -179,7 +180,9 @@ router.post('/login', async (req, res, next) => {
       return res.status(403).json({ error: 'Verify your email address before signing in', needsVerification: true });
     }
 
-    res.json({ token: signToken(user), user: publicUser(user) });
+    const token = signToken(user);
+    setAuthCookie(res, token);   // survives a refresh; JS never sees it
+    res.json({ token, user: publicUser(user) });
   } catch (err) { next(err); }
 });
 
@@ -249,6 +252,12 @@ router.post('/reset', async (req, res, next) => {
     logger.info('password reset completed', { user: rows[0].id });
     res.json({ message: 'Password updated. You can sign in now.' });
   } catch (err) { next(err); }
+});
+
+// POST /api/auth/logout — clears the session cookie
+router.post('/logout', (req, res) => {
+  clearAuthCookie(res);
+  res.json({ message: 'Signed out' });
 });
 
 // GET /api/auth/providers — lets the client show only what is actually configured
@@ -324,9 +333,9 @@ router.get('/google/callback', async (req, res, next) => {
     }
 
     const token = signToken(user);
-    const target = payload.mode === 'classroom' ? '/?google=classroom' : '/?google=1';
-    // The token rides in the fragment so it never lands in server logs.
-    res.redirect(`${target}#token=${token}`);
+    setAuthCookie(res, token);
+    // The cookie carries the session; no token in the URL at all now.
+    res.redirect(payload.mode === 'classroom' ? '/?google=classroom' : '/?google=1');
   } catch (err) {
     logger.error('google sign-in failed', { error: err.message, code: err.code || null });
     // The reason travels back to the UI so the cause is visible without log access.

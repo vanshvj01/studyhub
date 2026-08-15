@@ -457,6 +457,8 @@ let token = null, me = null, view = 'home', ctx = {};
 async function api(path, opts = {}) {
   const res = await fetch(API + path, {
     ...opts,
+    // The session cookie is httpOnly, so it has to be sent explicitly.
+    credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}), ...(opts.headers || {}) },
   });
   const data = await res.json().catch(() => ({}));
@@ -681,12 +683,14 @@ function backToSignIn() {
   if (mode === 'register') toggleAuthMode();
 }
 
-function logout() {
+async function logout() {
+  try { await api('/auth/logout', { method: 'POST' }); } catch { /* clear locally regardless */ }
   socket?.disconnect();
   socket = null;
   token = null; me = null;
   $('appView').classList.add('hidden');
   $('authView').classList.remove('hidden');
+  showPanel('authForm');
 }
 
 $('password').addEventListener('keydown', e => { if (e.key === 'Enter') submitAuth(); });
@@ -697,22 +701,6 @@ let resetToken = null;
 // invite, #token= from the Google callback.
 (function readUrlFlags() {
   const params = new URLSearchParams(location.search);
-
-  // Google sends the session token in the fragment so it never reaches a server log.
-  const hash = new URLSearchParams(location.hash.replace(/^#/, ''));
-  if (hash.get('token')) {
-    const googleToken = hash.get('token');
-    history.replaceState({}, '', location.pathname);
-    (async () => {
-      try {
-        token = googleToken;
-        const profile = await api('/profile');
-        await enterApp({ token: googleToken, user: profile });
-        if (params.get('google') === 'classroom') go('classroom');
-      } catch { token = null; }
-    })();
-    return;
-  }
 
   const googleError = params.get('google');
   if (googleError && googleError !== '1' && googleError !== 'classroom') {
@@ -777,6 +765,29 @@ async function detectProviders(attempt = 1) {
   }
 }
 detectProviders();
+restoreSession();
+
+/**
+ * On load the cookie may already carry a valid session, so ask the server who we
+ * are before showing the sign-in form. A 401 simply means nobody is signed in.
+ */
+async function restoreSession() {
+  try {
+    const profile = await api('/profile');
+    me = profile;
+    $('authView').classList.add('hidden');
+    $('appView').classList.remove('hidden');
+    await refreshMe();
+    connectSocket();
+    const params = new URLSearchParams(location.search);
+    if (params.get('google') === 'classroom') { history.replaceState({}, '', location.pathname); return go('classroom'); }
+    if (params.get('google')) history.replaceState({}, '', location.pathname);
+    go(me.role === 'parent' ? 'children' : 'home');
+    return true;
+  } catch {
+    return false;   // not signed in — the sign-in form is already showing
+  }
+}
 
 async function refreshMe() {
   const p = await api('/profile');
