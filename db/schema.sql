@@ -152,7 +152,8 @@ CREATE TABLE IF NOT EXISTS syllabus_topics (
   CONSTRAINT fk_topic_course FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
-CREATE INDEX idx_topics_course ON syllabus_topics (user_id, course_id, order_index);
+-- Indexes live in initDb's INDEX_MIGRATIONS, not here: MySQL has no
+-- CREATE INDEX IF NOT EXISTS, and this file is replayed on every boot.
 
 -- Which topics are actually in scope for a given exam ("the portion").
 CREATE TABLE IF NOT EXISTS exam_topics (

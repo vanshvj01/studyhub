@@ -48,6 +48,7 @@ const INDEX_MIGRATIONS = [
   ['users', 'uq_users_google', 'ALTER TABLE users ADD UNIQUE KEY uq_users_google (google_id)'],
   ['courses', 'uq_courses_source', 'ALTER TABLE courses ADD UNIQUE KEY uq_courses_source (source, source_id)'],
   ['assignments', 'uq_assignments_source', 'ALTER TABLE assignments ADD UNIQUE KEY uq_assignments_source (user_id, source, source_id)'],
+  ['syllabus_topics', 'idx_topics_course', 'ALTER TABLE syllabus_topics ADD INDEX idx_topics_course (user_id, course_id, order_index)'],
 ];
 
 async function hasColumn(conn, database, table, column) {
@@ -124,13 +125,43 @@ async function migrateProgressToSyllabus(conn) {
   logger.info('migrated progress rows into the syllabus', { rows: rows.length });
 }
 
+// Errors that simply mean "this part of the schema already exists". A boot must
+// not die because a statement is not expressible as IF NOT EXISTS — that takes
+// the whole site down, which is exactly what happened once.
+const ALREADY_APPLIED = new Set([
+  'ER_TABLE_EXISTS_ERROR', 'ER_DUP_KEYNAME', 'ER_DUP_FIELDNAME',
+  'ER_MULTIPLE_PRI_KEY', 'ER_FK_DUP_NAME', 'ER_DUP_INDEX',
+]);
+
+/** Runs schema.sql one statement at a time so one no-op cannot abort the rest. */
+async function applySchema(conn, sql) {
+  const statements = sql
+    .replace(/^\s*--.*$/gm, '')      // strip full-line comments
+    .split(';')
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  for (const statement of statements) {
+    try {
+      await conn.query(statement);
+    } catch (err) {
+      if (ALREADY_APPLIED.has(err.code)) {
+        logger.debug('schema statement already applied', { code: err.code });
+        continue;
+      }
+      logger.error('schema statement failed', { code: err.code, sql: statement.slice(0, 120) });
+      throw err;
+    }
+  }
+}
+
 async function initDb() {
   const database = process.env.MYSQL_DATABASE || 'studyhub';
   const conn = await mysql.createConnection(mysqlConfig({ database, multipleStatements: true }));
 
   try {
     const dbDir = path.join(__dirname, '..', '..', 'db');
-    await conn.query(fs.readFileSync(path.join(dbDir, 'schema.sql'), 'utf8'));
+    await applySchema(conn, fs.readFileSync(path.join(dbDir, 'schema.sql'), 'utf8'));
 
     for (const [table, column, sql] of COLUMN_MIGRATIONS) {
       if (!(await hasColumn(conn, database, table, column))) {
