@@ -10,6 +10,7 @@ const { logger, requestLogger } = require('./lib/logger');
 const { connectMongo, pingMySQL } = require('./config/db');
 const { initDb } = require('./config/initDb');
 const { attachRealtime } = require('./realtime');
+const { startScheduler } = require('./scheduler');
 
 const env = loadEnv();
 
@@ -63,6 +64,7 @@ async function start() {
     await Promise.all([pingMySQL(), connectMongo()]);
     await initDb();
     attachRealtime(server, app, env.corsOrigin);
+    startScheduler();
     server.listen(env.port, () => logger.info(`StudyHub listening on port ${env.port}`, { env: env.nodeEnv }));
   } catch (err) {
     logger.error('Startup failed — are MySQL and MongoDB running? (docker compose up -d)');

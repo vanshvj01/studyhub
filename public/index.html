@@ -471,6 +471,7 @@ const coverFor = id => PALETTE[Math.abs(id) % PALETTE.length];
 const initials = n => (n || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
 const fmtMin = m => m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`;
 const fmtDate = d => new Date(d).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+const fmtDateTime = d => new Date(d).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
 function avatarHtml(user, size, cls = '') {
   const s = `width:${size}px;height:${size}px;font-size:${Math.round(size * .38)}px`;
@@ -2217,7 +2218,23 @@ async function renderClassroom() {
             <span class="pill ${status.connected ? 'p-mint' : 'p-peach'}">${status.connected ? 'Connected' : 'Not connected'}</span>
           </div>
           ${status.connected
-            ? `<p class="sub">Last import: ${status.lastSyncedAt ? fmtDate(status.lastSyncedAt) : 'never'}.</p>
+            ? `<p class="sub">Last import: ${status.lastSyncedAt ? fmtDateTime(status.lastSyncedAt) : 'never'}.</p>
+
+               <div class="todo" style="margin-top:12px">
+                 <div style="flex:1">
+                   <div style="font-weight:500">Import automatically</div>
+                   <div class="sub" style="font-size:12px">
+                     ${status.autoSyncMinutes > 0
+                       ? `New coursework appears within ${status.autoSyncMinutes} minutes of being posted — no need to press anything.`
+                       : 'Disabled on this deployment (CLASSROOM_SYNC_MINUTES=0).'}
+                   </div>
+                 </div>
+                 <div class="check ${status.autoSync ? 'on' : ''}" onclick="toggleAutoSync(${!status.autoSync})"
+                      title="${status.autoSync ? 'Turn off' : 'Turn on'} automatic importing">
+                   ${status.autoSync ? '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>' : ''}
+                 </div>
+               </div>
+
                <div class="row" style="margin-top:14px">
                  <button class="btn" id="syncBtn" onclick="syncClassroom()">Import now</button>
                  <button class="btn ghost" onclick="disconnectClassroom()">Disconnect</button>
@@ -2240,7 +2257,8 @@ async function renderClassroom() {
             <div class="todo"><div style="flex:1"><b>Courses</b><div class="sub" style="font-size:12px">Active Classroom courses become StudyHub courses you're enrolled in</div></div></div>
             <div class="todo"><div style="flex:1"><b>Coursework</b><div class="sub" style="font-size:12px">Anything with a due date becomes a deadline the planner schedules around</div></div></div>
             <div class="todo"><div style="flex:1"><b>Announcements</b><div class="sub" style="font-size:12px">Posted text becomes a note, tagged <span class="tag">classroom</span></div></div></div>
-            <p class="sub" style="font-size:12px;margin-top:10px">Re-importing updates existing items rather than duplicating them.</p>
+            <p class="sub" style="font-size:12px;margin-top:10px">Re-importing updates existing items rather than duplicating them,
+              so the automatic sweep is safe to leave running.</p>
           </div>
         </div>
       </div>`}`;
@@ -2259,6 +2277,13 @@ async function syncClassroom() {
     btn.disabled = false; btn.textContent = 'Import now';
   }
 }
+async function toggleAutoSync(on) {
+  try {
+    await api('/classroom/settings', { method: 'PATCH', body: JSON.stringify({ autoSync: on }) });
+    go('classroom');
+  } catch (e) { alert(e.message); }
+}
+
 async function disconnectClassroom() {
   if (!confirm('Disconnect Google Classroom? Imported courses and deadlines stay.')) return;
   await api('/classroom/connection', { method: 'DELETE' });

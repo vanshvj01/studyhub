@@ -32,6 +32,7 @@ const COLUMN_MIGRATIONS = [
   ['users', 'google_refresh_token', 'ALTER TABLE users ADD COLUMN google_refresh_token TEXT NULL'],
   ['users', 'classroom_synced_at', 'ALTER TABLE users ADD COLUMN classroom_synced_at DATETIME NULL'],
   ['users', 'google_scopes', 'ALTER TABLE users ADD COLUMN google_scopes TEXT NULL'],
+  ['users', 'classroom_auto_sync', 'ALTER TABLE users ADD COLUMN classroom_auto_sync TINYINT(1) NOT NULL DEFAULT 1'],
   // password_hash becomes optional: a Google-only account never sets one
   ['courses', 'source_id', "ALTER TABLE courses ADD COLUMN source_id VARCHAR(64) NULL"],
   ['courses', 'source', "ALTER TABLE courses ADD COLUMN source ENUM('manual','classroom') NOT NULL DEFAULT 'manual'"],

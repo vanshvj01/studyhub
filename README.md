@@ -22,7 +22,7 @@ No build step and no frontend framework — the client is a single self-containe
 - **Global search** — one box across courses (MySQL) and notes + decks (MongoDB)
 - **Study plan** — schedules backwards from every deadline and exam, respecting your daily goal, and flags work that cannot fit in the time left
 - **Exams** — added by hand or by pasting a timetable in almost any date format; a preview step shows what was parsed before anything is saved
-- **Google Classroom import** — read-only sync of courses, coursework deadlines and announcements ([setup](GOOGLE.md))
+- **Google Classroom import** — read-only sync of courses, coursework deadlines and announcements, running automatically in the background so new assignments appear without anyone pressing import ([setup](GOOGLE.md))
 - **Sign in with Google**, or with a username, email address or phone number
 - **Messages** — real-time direct messages over Socket.IO, with note sharing and typing indicators
 - **Study rooms** — group rooms with live chat and an embedded Jitsi video call (no account or API key needed)
@@ -41,6 +41,7 @@ No build step and no frontend framework — the client is a single self-containe
 - **Fail-fast config** (`src/config/env.js`) — missing or weak `JWT_SECRET`, a non-numeric port or a malformed Mongo URI stop the process with a readable message instead of a stack trace at first use.
 - **Idempotent migrations** (`src/config/initDb.js`) — schema and column migrations run on every boot, so the app never depends on Docker's one-shot init hook.
 - **Pure domain logic** — streak calculation (`lib/streak.js`), grade maths (`lib/marks.js`), the study planner (`lib/planner.js`), timetable parsing (`lib/timetable.js`) and phone normalisation (`lib/phone.js`) are all separated from routes, so the rules can be tested without a database or a network.
+- **Background work is scheduled, not fire-and-forget** (`src/scheduler.js`) — the Classroom sweep guards against overlapping runs, staggers users by when they were last synced rather than syncing everyone on one tick, isolates per-user failures, and clears stale consent so the UI can prompt a reconnect instead of failing quietly.
 - **Optional integrations degrade quietly** — Google and email are read from the environment at request time. Without credentials the Google button is hidden, the Classroom page explains what is missing, and verification links fall back to the log. No integration is a hard dependency.
 - **Error handling** — a central handler; 5xx messages are never leaked to clients, unknown `/api/*` paths return JSON rather than the SPA shell.
 - **Uploads** — dependency-free base64 handling with a MIME allowlist and an 8 MB cap. Files are stored in MongoDB and served from `/api/files/:id`, because hosting platforms give containers an ephemeral filesystem — anything written to disk disappears on the next deploy.
@@ -52,7 +53,7 @@ No build step and no frontend framework — the client is a single self-containe
 npm test        # node --test, no external test framework
 ```
 
-65 tests covering the study planner (capacity limits, deadline ordering, impossible workloads), timetable parsing across six date formats, phone normalisation, account rules, email templating and transport selection, (usernames, emails, passwords, invite-code alphabet), the validation layer, streak edge cases (gaps, stale streaks, duplicate days), weighted grade maths, upload MIME/size rejection, and environment validation in isolated processes.
+78 tests covering the study planner (capacity limits, deadline ordering, impossible workloads), timetable parsing across six date formats, phone normalisation, account rules, email templating and transport selection, (usernames, emails, passwords, invite-code alphabet), the validation layer, streak edge cases (gaps, stale streaks, duplicate days), weighted grade maths, upload MIME/size rejection, and environment validation in isolated processes.
 
 ## Architecture
 
@@ -170,7 +171,8 @@ All routes except `/api/auth/*` and `/api/health` require `Authorization: Bearer
 | POST | /api/exams/import | Save selected parsed exams |
 | GET | /api/plan?days= | Day-by-day study schedule |
 | GET | /api/classroom/status | Connection state and import counts |
-| POST | /api/classroom/sync | Import from Google Classroom |
+| POST | /api/classroom/sync | Import from Google Classroom now |
+| PATCH | /api/classroom/settings | Turn automatic importing on or off |
 | GET | /api/dashboard | Per-course progress, notes, decks, deadlines |
 | GET | /api/auth/available?username= | Live username availability |
 | GET | /api/auth/verify?token= | Confirm an email address |

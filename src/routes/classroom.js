@@ -1,45 +1,23 @@
-// Google Classroom import. Pulls courses, coursework and announcements into
-// StudyHub's own tables so the planner, notes and deadlines all work off them.
-// Read-only: nothing is ever written back to Classroom.
+// Google Classroom import. Read-only: nothing is ever written back to Classroom.
 const express = require('express');
 const { pool } = require('../config/db');
-const Note = require('../models/Note');
 const google = require('../lib/google');
-const { logger } = require('../lib/logger');
+const { syncUserClassroom, hasClassroomScope } = require('../lib/classroomSync');
 const { requireAuth, requireRole } = require('../middleware/auth');
+const { validate } = require('../lib/validate');
+const { logger } = require('../lib/logger');
 
 const router = express.Router();
 router.use(requireAuth, requireRole('student'));
 
-// Signing in with Google grants only openid/email/profile. Importing needs the
-// Classroom scopes, which are a separate consent — so "has a Google token" is
-// not the same as "can read Classroom".
-const CLASSROOM_SCOPE = 'https://www.googleapis.com/auth/classroom.courses.readonly';
-const hasClassroomScope = scopes => String(scopes || '').includes(CLASSROOM_SCOPE);
-
-/** A fresh access token from the stored refresh token. */
-async function accessTokenFor(userId) {
-  const [[row]] = await pool.execute(
-    'SELECT google_refresh_token, google_scopes FROM users WHERE id = ?', [userId]
-  );
-  if (!row?.google_refresh_token) {
-    throw Object.assign(new Error('Connect Google Classroom first'), { status: 428 });
-  }
-  if (!hasClassroomScope(row.google_scopes)) {
-    throw Object.assign(
-      new Error('Your Google account is signed in, but Classroom access has not been granted yet. Use Connect Google Classroom.'),
-      { status: 428 }
-    );
-  }
-  const tokens = await google.refreshAccessToken(row.google_refresh_token);
-  return tokens.access_token;
-}
+const syncIntervalMinutes = () => Number(process.env.CLASSROOM_SYNC_MINUTES ?? 30);
 
 // GET /api/classroom/status
 router.get('/status', async (req, res, next) => {
   try {
     const [[row]] = await pool.execute(
-      'SELECT google_id, google_refresh_token, google_scopes, classroom_synced_at FROM users WHERE id = ?',
+      `SELECT google_id, google_refresh_token, google_scopes, classroom_synced_at, classroom_auto_sync
+       FROM users WHERE id = ?`,
       [req.user.id]
     );
     const [[counts]] = await pool.execute(
@@ -48,107 +26,29 @@ router.get('/status', async (req, res, next) => {
          (SELECT COUNT(*) FROM assignments WHERE user_id = ? AND source = 'classroom') AS assignments`,
       [req.user.id]
     );
+    const connected = Boolean(row?.google_refresh_token) && hasClassroomScope(row?.google_scopes);
     res.json({
       configured: google.isConfigured(),
-      // connected means "can actually read Classroom", not just "signed in with Google"
-      connected: Boolean(row?.google_refresh_token) && hasClassroomScope(row?.google_scopes),
+      connected,
       googleLinked: Boolean(row?.google_id),
       lastSyncedAt: row?.classroom_synced_at || null,
+      autoSync: connected && row?.classroom_auto_sync !== 0,
+      autoSyncMinutes: syncIntervalMinutes(),
       imported: { courses: Number(counts.courses), assignments: Number(counts.assignments) },
     });
   } catch (err) { next(err); }
 });
 
-// POST /api/classroom/sync — idempotent: re-running updates rather than duplicating
+// POST /api/classroom/sync — the manual "Import now" button
 router.post('/sync', async (req, res, next) => {
   try {
     if (!google.isConfigured()) {
       return res.status(503).json({ error: 'Google is not configured on this deployment' });
     }
-    const accessToken = await accessTokenFor(req.user.id);
-    const courses = await google.listCourses(accessToken);
-
-    const summary = { courses: 0, assignments: 0, notes: 0, skipped: 0 };
-
-    for (const course of courses) {
-      const code = google.courseCodeOf(course);
-      const title = course.name || code;
-      const semester = course.section || new Date().getFullYear().toString();
-
-      // Upsert the course by its Classroom id, so a rename does not duplicate it.
-      const [existing] = await pool.execute(
-        "SELECT id FROM courses WHERE source = 'classroom' AND source_id = ?", [course.id]
-      );
-      let courseId = existing[0]?.id;
-      if (courseId) {
-        await pool.execute('UPDATE courses SET title = ?, semester = ? WHERE id = ?', [title, semester, courseId]);
-      } else {
-        // Course codes are unique; add a suffix if the student already has one.
-        let unique = code;
-        for (let n = 2; ; n++) {
-          const [clash] = await pool.execute('SELECT 1 FROM courses WHERE code = ?', [unique]);
-          if (clash.length === 0) break;
-          unique = `${code}-${n}`;
-        }
-        const [result] = await pool.execute(
-          `INSERT INTO courses (code, title, semester, created_by, source, source_id)
-           VALUES (?, ?, ?, ?, 'classroom', ?)`,
-          [unique, title, semester, req.user.id, course.id]
-        );
-        courseId = result.insertId;
-        summary.courses++;
-      }
-
-      await pool.execute(
-        'INSERT IGNORE INTO enrollments (user_id, course_id) VALUES (?, ?)',
-        [req.user.id, courseId]
-      );
-
-      // ---- coursework becomes deadlines ----
-      for (const work of await google.listCoursework(accessToken, course.id)) {
-        const due = google.dueDateOf(work);
-        if (!due) { summary.skipped++; continue; }   // no due date, nothing to schedule
-        const [done] = await pool.execute(
-          `INSERT INTO assignments (user_id, course_id, title, due_date, source, source_id)
-           VALUES (?, ?, ?, ?, 'classroom', ?)
-           ON DUPLICATE KEY UPDATE title = VALUES(title), due_date = VALUES(due_date)`,
-          [req.user.id, courseId, (work.title || 'Coursework').slice(0, 200), due, work.id]
-        );
-        if (done.affectedRows === 1) summary.assignments++;
-      }
-
-      // ---- announcements and materials become notes ----
-      for (const post of await google.listAnnouncements(accessToken, course.id)) {
-        const body = (post.text || '').trim();
-        if (!body) continue;
-        const sourceKey = `classroom:${post.id}`;
-        const already = await Note.findOne({ 'sharedFrom.sourceId': sourceKey }).select('_id').lean();
-        if (already) continue;
-
-        const materials = (post.materials || [])
-          .map(m => m.driveFile?.driveFile?.title || m.link?.title || m.youtubeVideo?.title)
-          .filter(Boolean);
-
-        await Note.create({
-          courseId,
-          authorId: req.user.id,
-          authorName: 'Google Classroom',
-          title: body.split('\n')[0].slice(0, 120) || 'Classroom announcement',
-          content: materials.length ? `${body}\n\nAttached in Classroom:\n- ${materials.join('\n- ')}` : body,
-          tags: ['classroom'],
-          sharedFrom: { source: 'classroom', sourceId: sourceKey, url: post.alternateLink || null },
-        });
-        summary.notes++;
-      }
-    }
-
-    await pool.execute('UPDATE users SET classroom_synced_at = NOW() WHERE id = ?', [req.user.id]);
-    logger.info('classroom sync finished', { user: req.user.id, ...summary });
+    const summary = await syncUserClassroom(req.user.id);
     res.json({ message: 'Import finished', ...summary });
   } catch (err) {
     if (err.status === 403) {
-      // Consent has been narrowed or revoked; forget the scopes so the UI offers
-      // the Connect button again rather than a Retry that cannot work.
       await pool.execute('UPDATE users SET google_scopes = NULL WHERE id = ?', [req.user.id]).catch(() => {});
     }
     if (err.status) return res.status(err.status).json({ error: err.message });
@@ -156,7 +56,17 @@ router.post('/sync', async (req, res, next) => {
   }
 });
 
-// DELETE /api/classroom/connection — forget the Google link
+// PATCH /api/classroom/settings { autoSync }
+router.patch('/settings', validate({ autoSync: { type: 'bool', required: true } }), async (req, res, next) => {
+  try {
+    await pool.execute('UPDATE users SET classroom_auto_sync = ? WHERE id = ?',
+      [req.body.autoSync ? 1 : 0, req.user.id]);
+    logger.info('classroom auto-sync setting changed', { user: req.user.id, autoSync: req.body.autoSync });
+    res.json({ autoSync: req.body.autoSync, everyMinutes: syncIntervalMinutes() });
+  } catch (err) { next(err); }
+});
+
+// DELETE /api/classroom/connection
 router.delete('/connection', async (req, res, next) => {
   try {
     await pool.execute(
