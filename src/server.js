@@ -20,9 +20,13 @@ app.disable('x-powered-by');
 // so generated links use https.
 app.set('trust proxy', 1);
 app.use(cors({ origin: env.corsOrigin }));
+app.use('/api', requestLogger);
+// The payment webhook is signed over its raw bytes, so billing is mounted before
+// the app-wide JSON parser — re-serialising the body breaks every signature check.
+// The router brings its own parser for the routes that need one.
+app.use('/api/billing', require('./routes/billing'));
 // generous limit: note attachments and avatars arrive as base64 data URLs
 app.use(express.json({ limit: '25mb' }));
-app.use('/api', requestLogger);
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
 app.use('/api/auth', require('./routes/auth'));

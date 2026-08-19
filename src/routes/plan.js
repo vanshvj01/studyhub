@@ -5,14 +5,21 @@ const express = require('express');
 const { pool } = require('../config/db');
 const { buildPlan, expandExams } = require('../lib/planner');
 const { requireAuth, requireRole } = require('../middleware/auth');
+const { loadAccess } = require('../middleware/entitlements');
+const { FREE_LIMITS } = require('../lib/plans');
 
 const router = express.Router();
-router.use(requireAuth, requireRole('student'));
+router.use(requireAuth, requireRole('student'), loadAccess);
 
 // GET /api/plan?days=14&minutes=
 router.get('/', async (req, res, next) => {
   try {
-    const horizonDays = Math.min(Math.max(Number(req.query.days) || 14, 3), 60);
+    // Free accounts plan a week ahead; a pass opens the full horizon. The plan
+    // is still produced either way — it is shortened, never withheld.
+    const maxHorizon = req.access.limits.planHorizonDays;
+    const requested = Math.max(Number(req.query.days) || 14, 3);
+    const horizonDays = Math.min(requested, maxHorizon);
+    const horizonCapped = requested > maxHorizon;
     const [[goal]] = await pool.execute('SELECT daily_goal_minutes FROM users WHERE id = ?', [req.user.id]);
     const dailyMinutes = Number(req.query.minutes) || Number(goal?.daily_goal_minutes) || 60;
 
@@ -74,6 +81,9 @@ router.get('/', async (req, res, next) => {
     const plan = buildPlan(items, { dailyMinutes, horizonDays });
     res.json({
       ...plan,
+      pro: req.access.pro,
+      horizonCapped,
+      freeHorizonDays: FREE_LIMITS.planHorizonDays,
       dailyMinutes,
       horizonDays,
       studiedToday: Number(logged.m),

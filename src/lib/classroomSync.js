@@ -11,6 +11,8 @@ const hasClassroomScope = scopes => String(scopes || '').includes(CLASSROOM_SCOP
 /** Decides whether a user is due for a background sync. Pure, so it is testable. */
 function dueForSync(user, { now = new Date(), intervalMinutes = 30 } = {}) {
   if (!user?.google_refresh_token) return false;
+  // Background syncing is a paid capability; manual import stays free forever.
+  if (user.pro === false || user.pro === 0) return false;
   if (!hasClassroomScope(user.google_scopes)) return false;
   if (user.classroom_auto_sync === 0 || user.classroom_auto_sync === false) return false;
   if (!user.classroom_synced_at) return true;               // never synced

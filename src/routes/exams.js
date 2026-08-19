@@ -2,11 +2,12 @@
 const express = require('express');
 const { pool } = require('../config/db');
 const { requireAuth, requireRole } = require('../middleware/auth');
+const { loadAccess } = require('../middleware/entitlements');
 const { validate } = require('../lib/validate');
 const { parseTimetable } = require('../lib/timetable');
 
 const router = express.Router();
-router.use(requireAuth, requireRole('student'));
+router.use(requireAuth, requireRole('student'), loadAccess);
 
 // GET /api/exams — with how much of the syllabus each one covers
 router.get('/', async (req, res, next) => {
@@ -72,6 +73,23 @@ router.put('/:id/topics', validate({ topicIds: { type: 'array', required: true, 
       'SELECT id, course_id FROM exams WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]
     );
     if (!exam) return res.status(404).json({ error: 'Exam not found' });
+
+    // Free accounts can scope one exam. Clearing a portion is always allowed, so
+    // nobody is locked out of undoing something they already did.
+    if (!req.access.pro && req.body.topicIds.length > 0) {
+      const [[scoped]] = await pool.execute(
+        `SELECT COUNT(DISTINCT et.exam_id) AS n FROM exam_topics et
+         JOIN exams e ON e.id = et.exam_id
+         WHERE e.user_id = ? AND et.exam_id <> ?`,
+        [req.user.id, exam.id]
+      );
+      if (Number(scoped.n) >= req.access.limits.examsWithPortions) {
+        return res.status(402).json({
+          error: `Free accounts can set the portion for ${req.access.limits.examsWithPortions} exam. An exam pass covers all of them.`,
+          upgrade: true, feature: 'Exam portions',
+        });
+      }
+    }
 
     const ids = [...new Set(req.body.topicIds.map(Number).filter(Number.isInteger))];
     await pool.execute('DELETE FROM exam_topics WHERE exam_id = ?', [exam.id]);

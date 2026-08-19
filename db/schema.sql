@@ -163,3 +163,40 @@ CREATE TABLE IF NOT EXISTS exam_topics (
   CONSTRAINT fk_et_exam  FOREIGN KEY (exam_id)  REFERENCES exams(id)           ON DELETE CASCADE,
   CONSTRAINT fk_et_topic FOREIGN KEY (topic_id) REFERENCES syllabus_topics(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
+
+-- ---------------------------------------------------------------------------
+-- Billing. An entitlement is "this user has Pro until this moment, because of
+-- this". Every product writes the same kind of row: an exam pass writes one for
+-- the buyer, a squad or family plan writes one per member. Access is therefore
+-- a single question — is any row still in date?
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS entitlements (
+  id           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id      INT UNSIGNED NOT NULL,
+  source       ENUM('exam_pass','squad','family','tutor','manual') NOT NULL,
+  plan_code    VARCHAR(40)  NOT NULL,
+  access_until DATETIME     NOT NULL,
+  granted_by   INT UNSIGNED NULL,           -- the payer, when someone else paid
+  payment_id   INT UNSIGNED NULL,
+  revoked_at   DATETIME     NULL,
+  created_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_ent_user  FOREIGN KEY (user_id)    REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_ent_payer FOREIGN KEY (granted_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS payments (
+  id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id       INT UNSIGNED NOT NULL,
+  provider      VARCHAR(20)  NOT NULL DEFAULT 'razorpay',
+  order_id      VARCHAR(64)  NOT NULL,
+  payment_ref   VARCHAR(64)  NULL,          -- the provider's payment id, once paid
+  plan_code     VARCHAR(40)  NOT NULL,
+  amount_paise  INT UNSIGNED NOT NULL,
+  currency      CHAR(3)      NOT NULL DEFAULT 'INR',
+  status        ENUM('created','paid','failed','refunded') NOT NULL DEFAULT 'created',
+  notes         TEXT         NULL,
+  created_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  paid_at       DATETIME     NULL,
+  UNIQUE KEY uq_payment_order (provider, order_id),
+  CONSTRAINT fk_pay_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;

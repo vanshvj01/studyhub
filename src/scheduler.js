@@ -23,9 +23,11 @@ async function runPass() {
 
   try {
     const [users] = await pool.execute(
-      `SELECT id, google_refresh_token, google_scopes, classroom_synced_at, classroom_auto_sync
-       FROM users
-       WHERE google_refresh_token IS NOT NULL AND classroom_auto_sync = 1 AND role = 'student'`
+      `SELECT u.id, u.google_refresh_token, u.google_scopes, u.classroom_synced_at, u.classroom_auto_sync,
+              EXISTS(SELECT 1 FROM entitlements e
+                     WHERE e.user_id = u.id AND e.revoked_at IS NULL AND e.access_until > NOW()) AS pro
+       FROM users u
+       WHERE u.google_refresh_token IS NOT NULL AND u.classroom_auto_sync = 1 AND u.role = 'student'`
     );
 
     const due = users.filter(u => dueForSync(u, { intervalMinutes: intervalMinutes() }));

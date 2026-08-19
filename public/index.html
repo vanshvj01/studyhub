@@ -265,6 +265,28 @@
   }
   .btn-google:hover { background: var(--surface-2); }
 
+  /* ---------- upgrade ---------- */
+  .upsell { border: 1px solid var(--accent-3); background: var(--accent-2); border-radius: var(--r-lg); padding: 18px 20px; }
+  .plan-card { border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); padding: 20px; }
+  .plan-card.featured { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-2); }
+  .plan-price { font-size: 30px; font-weight: 600; letter-spacing: -.03em; }
+  .pro-pill { background: var(--accent); color: var(--on-accent); border-radius: 5px; padding: 1px 7px;
+              font-size: 10.5px; font-weight: 700; letter-spacing: .04em; }
+
+  /* ---------- upgrade ---------- */
+  .price-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg);
+                padding: 22px; position: relative; }
+  .price-card.featured { border-color: var(--accent-3); box-shadow: 0 0 0 3px var(--accent-2); }
+  .price-card .amount { font-size: 34px; font-weight: 700; letter-spacing: -.03em; }
+  .price-card ul { list-style: none; margin: 16px 0 0; }
+  .price-card li { display: flex; gap: 9px; padding: 6px 0; font-size: 13.5px; color: var(--ink-2); }
+  .price-card li svg { width: 15px; height: 15px; color: var(--pos); flex-shrink: 0; margin-top: 2px; }
+  .upsell { background: var(--accent-2); border: 1px solid var(--accent-3); border-radius: var(--r-lg);
+            padding: 16px 18px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .upsell .grow { flex: 1; min-width: 220px; }
+  .pro-tag { background: var(--accent); color: var(--on-accent); border-radius: 5px;
+             padding: 2px 7px; font-size: 10.5px; font-weight: 700; letter-spacing: .04em; }
+
   /* ---------- syllabus ---------- */
   .unit-head { display: flex; align-items: center; gap: 10px; padding: 10px 0 8px; border-bottom: 1px solid var(--border); }
   .unit-head h3 { flex: 1; }
@@ -331,6 +353,7 @@
            max-height: 88vh; overflow: auto; box-shadow: var(--shadow-lg); }
 </style>
 <script src="/socket.io/socket.io.js" defer></script>
+<script src="https://checkout.razorpay.com/v1/checkout.js" defer></script>
 </head>
 <body>
 
@@ -530,7 +553,10 @@
       <div class="me" onclick="go('profile')">
         <div class="avatar" id="navAvatar" style="width:36px;height:36px;font-size:14px"></div>
         <div style="min-width:0">
-          <div style="font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="navName"></div>
+          <div class="row" style="gap:6px;flex-wrap:nowrap">
+            <div style="font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="navName"></div>
+            <span class="pro-tag hidden" id="proBadge" data-pro-tag>PRO</span>
+          </div>
           <div class="sub" style="font-size:12px" id="navRole">View profile</div>
         </div>
       </div>
@@ -600,7 +626,12 @@ async function api(path, opts = {}) {
     headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}), ...(opts.headers || {}) },
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || res.statusText);
+  if (!res.ok) {
+    const error = new Error(data.error || res.statusText);
+    // 402 Payment Required: the caller can offer the pass instead of an error.
+    if (res.status === 402 || data.upgrade) { error.upgrade = true; error.feature = data.feature; }
+    throw error;
+  }
   return data;
 }
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
@@ -770,6 +801,7 @@ async function enterApp(data) {
   $('authView').classList.add('hidden');
   $('appView').classList.remove('hidden');
   await refreshMe();
+  if (me.role === 'student') await refreshBilling();
   connectSocket();
   go(me.role === 'parent' ? 'children' : 'home');
 }
@@ -916,6 +948,7 @@ async function restoreSession() {
     $('authView').classList.add('hidden');
     $('appView').classList.remove('hidden');
     await refreshMe();
+    if (me.role === 'student') await refreshBilling();
     connectSocket();
     const params = new URLSearchParams(location.search);
     if (params.get('google') === 'classroom') { history.replaceState({}, '', location.pathname); return go('classroom'); }
@@ -959,10 +992,12 @@ const ICONS = {
   grades: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
   chat: '<path d="M21 15a2 2 0 01-2 2H8l-5 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>',
   rooms: '<path d="M23 7l-7 5 7 5z"/><rect x="1" y="5" width="15" height="14" rx="2"/>',
+  upgrade: '<path d="M12 2l2.6 6.6L21 9.3l-4.8 4.3 1.4 6.4L12 16.8 6.4 20l1.4-6.4L3 9.3l6.4-.7z"/>',
   refer: '<circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0114 0M19 8v6M22 11h-6"/>',
   plan: '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 10h18M8 2v4M16 2v4M8 15h4"/>',
   exams: '<path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h5"/>',
   classroom: '<path d="M2 8l10-5 10 5-10 5z"/><path d="M6 11v5c0 1.7 2.7 3 6 3s6-1.3 6-3v-5"/>',
+  upgrade: '<path d="M12 2l2.6 6.6L21 9.2l-5 4.3 1.6 6.5L12 16.6 6.4 20l1.6-6.5-5-4.3 6.4-.6z"/>',
   children: '<circle cx="8" cy="9" r="3.2"/><circle cx="17" cy="7" r="2.6"/><path d="M2 20a6 6 0 0112 0M14.5 20a5.5 5.5 0 017.5-5"/>',
   board: '<path d="M8 21h8M12 17v4"/><path d="M7 4h10v5a5 5 0 01-10 0z"/><path d="M17 5h3v2a3 3 0 01-3 3M7 5H4v2a3 3 0 003 3"/>',
   profile: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0116 0"/>',
@@ -972,7 +1007,7 @@ const NAV_STUDENT = [
   ['plan', 'Study plan'], ['timer', 'Study timer'], ['todo', 'Deadlines'],
   ['exams', 'Exams'], ['grades', 'Grades'],
   ['chat', 'Messages'], ['rooms', 'Study rooms'],
-  ['board', 'Leaderboard'], ['classroom', 'Classroom import'],
+  ['board', 'Leaderboard'], ['classroom', 'Classroom import'], ['upgrade', 'Exam pass'],
   ['refer', 'Refer a friend'], ['profile', 'Profile'],
 ];
 const NAV_PARENT = [
@@ -1006,6 +1041,8 @@ async function go(v, params = {}) {
     else if (v === 'refer') await renderReferrals();
     else if (v === 'children') await renderChildren();
     else if (v === 'child') await renderChild();
+    else if (v === 'upgrade') await renderUpgrade();
+    else if (v === 'upgrade') await renderUpgrade();
     else if (v === 'plan') await renderPlan();
     else if (v === 'exams') await renderExams();
     else if (v === 'classroom') await renderClassroom();
@@ -2340,7 +2377,7 @@ const DAYNUM = d => new Date(d).toLocaleDateString(undefined, { day: 'numeric', 
 
 async function renderPlan() {
   const days = ctx.days || 14;
-  const plan = await api(`/plan?days=${days}`);
+  const [plan] = await Promise.all([api(`/plan?days=${days}`), refreshBilling()]);
   const today = new Date().toISOString().slice(0, 10);
   const hours = m => (m >= 60 ? `${Math.round(m / 60 * 10) / 10}h` : `${m}m`);
 
@@ -2350,9 +2387,18 @@ async function renderPlan() {
         <p class="sub">Built backwards from your deadlines and exam syllabus, ${fmtMin(plan.dailyMinutes)} a day.
           Harder and less-revised topics get more time.</p></div>
       <div class="row">
-        ${[7, 14, 30].map(d => `<button class="btn ${days === d ? 'soft' : 'ghost'} sm" onclick="go('plan',{days:${d}})">${d} days</button>`).join('')}
+        ${[7, 14, 30].map(d => `<button class="btn ${days === d ? 'soft' : 'ghost'} sm" onclick="go('plan',{days:${d}})">${d} days
+          ${!plan.pro && d > plan.freeHorizonDays ? '<span class="pro-tag" style="margin-left:6px">PRO</span>' : ''}</button>`).join('')}
       </div>
     </div>
+
+    ${plan.horizonCapped ? `<div class="upsell" style="margin-bottom:16px">
+      <div class="grow"><b>Showing the next ${plan.horizonDays} days.</b>
+        <div class="sub" style="margin-top:4px">Free accounts plan a week ahead. An exam pass opens the full 60-day view,
+          so revision can start early rather than the night before.</div></div>
+      <button class="btn" onclick="go('upgrade')">See the pass</button>
+    </div>` : ''}
+    ${examUpsell((plan.exams || []).map(e => ({ ...e, exam_date: e.due })))}
 
     <div class="grid g-4" style="margin-bottom:16px">
       <div class="stat s-lav"><div class="n">${plan.totals.items}</div>
@@ -2416,7 +2462,9 @@ async function renderPlan() {
 // ===================== exams =====================
 async function renderExams() {
   const [exams, dash] = await Promise.all([api('/exams'), api('/dashboard')]);
+  await refreshBilling();
   $('main').innerHTML = `
+    ${examUpsell(exams)}
     <div class="page-head"><div><h1>Exams</h1>
       <p class="sub">Add them by hand, or paste your timetable and let StudyHub read it.</p></div>
       <button class="btn ghost" onclick="pasteTimetableModal()">Paste a timetable</button></div>
@@ -2538,7 +2586,10 @@ async function savePortion(examId) {
     await api(`/exams/${examId}/topics`, { method: 'PUT', body: JSON.stringify({ topicIds }) });
     closeModal();
     go('exams');
-  } catch (e) { $('scopeErr').textContent = e.message; }
+  } catch (e) {
+    if (e.upgrade) { closeModal(); return upgradeModal(e.feature || 'Exam portions'); }
+    $('scopeErr').textContent = e.message;
+  }
 }
 
 function pasteTimetableModal() {
@@ -2708,6 +2759,193 @@ async function restoreClassroom() {
   go('classroom');
 }
 
+// ===================== exam pass =====================
+let billing = { pro: false, until: null, plans: [], configured: false, testMode: false, keyId: null };
+
+/** Refreshes what the current user has bought. Cheap, and everything reads it. */
+async function refreshBilling() {
+  try {
+    const [me, catalogue] = await Promise.all([api('/billing/me'), api('/billing/plans')]);
+    billing = { ...billing, ...catalogue, ...me };
+  } catch { /* billing being unavailable must never block the app */ }
+  document.querySelectorAll('[data-pro-tag]').forEach(el => el.classList.toggle('hidden', !billing.pro));
+  return billing;
+}
+
+const PRO_FEATURES = [
+  'Plan up to 60 days ahead, not 7',
+  'Topic-level portions for every exam',
+  'Google Classroom imports itself in the background',
+  'Printable revision schedule',
+];
+
+/** Loads Razorpay's checkout script the first time it is actually needed. */
+function loadCheckout() {
+  if (window.Razorpay) return Promise.resolve(true);
+  return new Promise(resolve => {
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.head.appendChild(script);
+  });
+}
+
+async function buyPass(planCode, buttonEl) {
+  const setBusy = (busy, label) => { if (buttonEl) { buttonEl.disabled = busy; buttonEl.textContent = label; } };
+  setBusy(true, 'Starting…');
+  try {
+    if (!(await loadCheckout())) throw new Error('Could not reach the payment provider. Check your connection.');
+
+    const order = await api('/billing/order', { method: 'POST', body: JSON.stringify({ planCode }) });
+
+    const checkout = new window.Razorpay({
+      key: order.keyId,
+      order_id: order.orderId,
+      amount: order.amountPaise,
+      currency: order.currency,
+      name: 'StudyHub',
+      description: `${order.plan.name} · ${order.plan.days} days`,
+      prefill: { name: me.name, email: me.email, contact: me.phone || '' },
+      theme: { color: getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() },
+      modal: { ondismiss: () => setBusy(false, 'Try again') },
+      handler: async response => {
+        try {
+          const result = await api('/billing/verify', { method: 'POST', body: JSON.stringify({
+            orderId: response.razorpay_order_id,
+            paymentId: response.razorpay_payment_id,
+            signature: response.razorpay_signature,
+          })});
+          await refreshBilling();
+          passConfirmed(result);
+        } catch (e) {
+          // The webhook is authoritative, so a failed callback is rarely fatal.
+          modal(`<h2>Payment received</h2>
+            <p class="sub" style="margin:8px 0 16px">We could not confirm it in the browser (${esc(e.message)}),
+              but the payment provider will notify us within a minute. Refresh then — you will not be charged twice.</p>
+            <div class="row" style="justify-content:flex-end"><button class="btn" onclick="closeModal();go('upgrade')">OK</button></div>`);
+        }
+      },
+    });
+    checkout.open();
+    setBusy(false, 'Buy pass');
+  } catch (e) {
+    setBusy(false, 'Buy pass');
+    alert(e.message);
+  }
+}
+
+function passConfirmed(result) {
+  modal(`<div style="text-align:center;padding:8px 0 4px">
+      <div style="width:48px;height:48px;border-radius:50%;background:var(--pos-bg);display:grid;place-items:center;margin:0 auto 14px">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="var(--pos)" stroke-width="2.5"
+             stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>
+      </div>
+      <h2>${result.extended ? 'Pass extended' : 'You’re on the exam pass'}</h2>
+      <p class="sub" style="margin:8px 0 18px">
+        ${esc(result.plan || 'Exam pass')} — full access until <b>${fmtDate(result.until)}</b>.
+        ${result.extended ? 'Your remaining days were carried over.' : ''}
+      </p>
+      <button class="btn" onclick="closeModal();go('plan')">Open the study plan</button>
+    </div>`);
+}
+
+/** Shown whenever a gated action returns 402. */
+function upgradeModal(feature) {
+  modal(`<h2>${esc(feature || 'That')} needs an exam pass</h2>
+    <p class="sub" style="margin:8px 0 16px">One payment, no subscription, no auto-renew — it simply expires.</p>
+    <ul style="list-style:none;margin:0 0 18px">
+      ${PRO_FEATURES.map(f => `<li style="display:flex;gap:9px;padding:5px 0;font-size:13.5px;color:var(--ink-2)">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="var(--pos)" stroke-width="2.5"
+             stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px"><path d="M4 12l5 5L20 6"/></svg>
+        ${esc(f)}</li>`).join('')}
+    </ul>
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn ghost" onclick="closeModal()">Not now</button>
+      <button class="btn" onclick="closeModal();go('upgrade')">See the passes</button></div>`);
+}
+
+async function renderUpgrade() {
+  await refreshBilling();
+  const daysLeft = billing.until
+    ? Math.max(0, Math.ceil((new Date(billing.until) - new Date()) / 86400000)) : 0;
+
+  $('main').innerHTML = `
+    <div class="page-head"><div><h1>Exam pass</h1>
+      <p class="sub">Everything in StudyHub stays free. A pass adds the parts that matter when an exam is close.</p></div></div>
+
+    ${billing.pro ? `<div class="card" style="background:var(--pos-bg);border-color:color-mix(in srgb, var(--pos) 35%, transparent);margin-bottom:16px">
+      <div class="spread">
+        <div><h2 style="color:var(--pos)">Your pass is active</h2>
+          <p class="sub" style="margin-top:6px">Full access until <b>${fmtDate(billing.until)}</b> — ${daysLeft} day${daysLeft === 1 ? '' : 's'} left.
+            ${billing.sources?.includes('family') ? 'Paid for by your family plan.' : ''}</p></div>
+        <span class="pro-tag">PRO</span>
+      </div>
+    </div>` : ''}
+
+    ${!billing.configured ? `<div class="card" style="margin-bottom:16px">
+      <h2>Payments are not switched on here</h2>
+      <p class="sub" style="margin-top:6px">Set <code>RAZORPAY_KEY_ID</code> and <code>RAZORPAY_KEY_SECRET</code> to enable checkout.
+        See <b>BILLING.md</b>.</p></div>`
+    : billing.testMode ? `<p class="sub" style="margin-bottom:14px">
+        <span class="pill p-peach">Test mode</span>
+        No real money moves. Use card <b>4111 1111 1111 1111</b>, any future expiry, any CVV.</p>` : ''}
+
+    <div class="grid g-2">
+      ${billing.plans.map((plan, i) => `
+        <div class="price-card ${i === 1 ? 'featured' : ''}">
+          ${plan.badge ? `<span class="pill p-lav" style="position:absolute;top:16px;right:16px">${esc(plan.badge)}</span>` : ''}
+          <h2>${esc(plan.name)}</h2>
+          <p class="sub" style="margin-top:4px">${esc(plan.blurb)}</p>
+          <div class="amount" style="margin-top:14px">${esc(plan.price)}
+            <span class="sub" style="font-size:14px;font-weight:400">for ${plan.days} days</span></div>
+          <ul>${PRO_FEATURES.map(f => `<li>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>
+            ${esc(f)}</li>`).join('')}</ul>
+          <button class="btn" style="width:100%;margin-top:18px" ${billing.configured ? '' : 'disabled'}
+            onclick="buyPass('${plan.code}', this)">${billing.pro ? 'Extend by ' + plan.days + ' days' : 'Buy pass'}</button>
+        </div>`).join('')}
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <h2 style="margin-bottom:10px">What stays free, always</h2>
+      <p class="sub">Courses, syllabus, notes, flashcards, the study timer, deadlines, grades, messages, study rooms
+        and manual Classroom imports. A pass never locks away something you already created — when it expires the
+        planner simply shortens back to a week.</p>
+    </div>
+
+    ${billing.history?.length ? `<div class="card">
+      <h2 style="margin-bottom:12px">Payments</h2>
+      <table><thead><tr><th>Plan</th><th>Date</th><th class="num">Amount</th><th class="num">Status</th></tr></thead><tbody>
+        ${billing.history.map(h => `<tr>
+          <td style="font-weight:500">${esc(h.plan)}</td>
+          <td class="sub">${fmtDate(h.paid_at || h.created_at)}</td>
+          <td class="num">${esc(h.price)}</td>
+          <td class="num"><span class="pill ${h.status === 'paid' ? 'p-mint' : h.status === 'failed' ? 'p-rose' : 'p-peach'}">${esc(h.status)}</span></td>
+        </tr>`).join('')}
+      </tbody></table>
+    </div>` : ''}`;
+}
+
+/** The contextual offer: only when an exam is close and the student has no pass. */
+function examUpsell(exams = []) {
+  if (billing.pro || !billing.configured) return '';
+  const soon = exams
+    .map(e => ({ ...e, days: Math.ceil((new Date(e.exam_date || e.due) - new Date()) / 86400000) }))
+    .filter(e => e.days >= 0 && e.days <= 21)
+    .sort((a, b) => a.days - b.days)[0];
+  if (!soon) return '';
+
+  return `<div class="upsell" style="margin-bottom:16px">
+    <div class="grow">
+      <b>${esc(soon.title)} in ${soon.days === 0 ? 'less than a day' : soon.days + ' day' + (soon.days === 1 ? '' : 's')}.</b>
+      <div class="sub" style="margin-top:4px">Unlock the full revision planner, topic portions for every exam and
+        background Classroom sync — ${esc(billing.plans[0]?.price || '₹79')} for 30 days, no subscription.</div>
+    </div>
+    <button class="btn" onclick="go('upgrade')">See the pass</button>
+  </div>`;
+}
+
 // ===================== profile =====================
 async function renderProfile() {
   const p = await api('/profile');
@@ -2715,6 +2953,7 @@ async function renderProfile() {
   const isParent = p.role === 'parent';
   const guardians = isParent ? null : await api('/profile/guardians').catch(() => ({ guardians: [], invites: [] }));
   const archive = isParent ? {} : await api('/classroom/status').then(r => r.archive || {}).catch(() => ({}));
+  if (!isParent) await refreshBilling();
 
   $('main').innerHTML = `
     <div class="page-head"><div><h1>Profile</h1>
@@ -2751,6 +2990,14 @@ async function renderProfile() {
         <div class="stat s-lav"><div class="n">${s.decksBuilt}</div><div class="l">decks built</div></div>
         <div class="stat s-sky"><div class="n">${s.referrals}</div><div class="l">friends referred</div></div>
       </div>`}
+
+    ${billing.pro ? `<div class="card" style="margin-top:14px">
+      <div class="spread">
+        <div><h2>Exam pass <span class="pro-tag">PRO</span></h2>
+          <p class="sub" style="margin-top:6px">Active until <b>${fmtDate(billing.until)}</b>.</p></div>
+        <button class="btn ghost" onclick="go('upgrade')">Manage</button>
+      </div>
+    </div>` : ''}
 
     ${archive.archived ? `<div class="card" style="margin-top:14px;background:var(--warn-bg);border-color:color-mix(in srgb, var(--warn) 35%, transparent)">
       <div class="spread">

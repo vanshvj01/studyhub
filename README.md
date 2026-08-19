@@ -48,6 +48,8 @@ Theming is pure CSS custom properties: one set of component rules, two palettes.
 - **Fail-fast config** (`src/config/env.js`) — missing or weak `JWT_SECRET`, a non-numeric port or a malformed Mongo URI stop the process with a readable message instead of a stack trace at first use.
 - **Idempotent migrations** (`src/config/initDb.js`) — schema and column migrations run on every boot, so the app never depends on Docker's one-shot init hook.
 - **Pure domain logic** — streak calculation (`lib/streak.js`), grade maths (`lib/marks.js`), the study planner (`lib/planner.js`), timetable parsing (`lib/timetable.js`) and phone normalisation (`lib/phone.js`) are all separated from routes, so the rules can be tested without a database or a network.
+- **Payments are idempotent by construction** (`src/routes/billing.js`) — the browser callback and the webhook both grant access, and a single conditional `UPDATE` decides which one wins. Signatures are verified on both paths with constant-time comparison, and the webhook is mounted ahead of the JSON parser so it can be checked against the raw bytes it was signed over.
+- **Money is handled carefully** (`src/lib/razorpay.js`, `src/routes/billing.js`) — amounts in paise, never floats; signatures verified constant-time; the webhook mounted before the JSON parser so it sees the raw bytes it was signed over; and confirmation is idempotent, so the browser callback and the webhook racing each other still buys exactly one pass.
 - **The frontend is statically checked** (`tests/frontend.test.js`) — with no bundler, a call to a helper that was never defined only fails when a user opens that view. A test parses the page, strips comments and string literals while keeping template expressions, and fails the build on an undefined function, an inline handler with no implementation, a duplicate declaration, or an API path with no matching route file.
 - **Destructive actions are reversible** (`src/lib/classroomArchive.js`) — disconnecting an integration marks imported rows with `archived_at` instead of deleting them. Every read filters them out, the profile offers a restore with a countdown, a re-import un-archives first so nothing collides on the unique keys, and a daily sweep purges anything past the retention window.
 - **Background work is scheduled, not fire-and-forget** (`src/scheduler.js`) — the Classroom sweep guards against overlapping runs, staggers users by when they were last synced rather than syncing everyone on one tick, isolates per-user failures, and clears stale consent so the UI can prompt a reconnect instead of failing quietly.
@@ -62,7 +64,7 @@ Theming is pure CSS custom properties: one set of component rules, two palettes.
 npm test        # node --test, no external test framework
 ```
 
-130 tests covering the study planner (capacity limits, deadline ordering, topic effort by difficulty and mastery, impossible workloads), syllabus parsing (units, roman numerals, bullets, inline topic lists), timetable parsing across six date formats, phone normalisation, account rules, email templating and transport selection, (usernames, emails, passwords, invite-code alphabet), the validation layer, streak edge cases (gaps, stale streaks, duplicate days), weighted grade maths, upload MIME/size rejection, and environment validation in isolated processes.
+148 tests covering the study planner (capacity limits, deadline ordering, topic effort by difficulty and mastery, impossible workloads), syllabus parsing (units, roman numerals, bullets, inline topic lists), timetable parsing across six date formats, phone normalisation, account rules, email templating and transport selection, (usernames, emails, passwords, invite-code alphabet), the validation layer, streak edge cases (gaps, stale streaks, duplicate days), weighted grade maths, upload MIME/size rejection, and environment validation in isolated processes.
 
 ## Architecture
 
@@ -111,6 +113,21 @@ npm start              # http://localhost:3000
 
 Demo login: `vansh@studyhub.dev` (or username `vansh`) / `password123`. Seeded accounts are pre-verified;
 new accounts must click the verification link, which is printed in the server log.
+
+## Billing
+
+One-off exam passes (₹79 / 30 days, ₹199 / 90 days) via Razorpay — no subscription to cancel.
+Free accounts keep everything social and everything they have written; a pass lifts the study-plan
+horizon, unlocks topic-level portions for every exam, and turns on background Classroom syncing.
+See **[BILLING.md](BILLING.md)** for setup and for how a payment becomes access.
+
+## Billing
+
+A one-off **exam pass** (₹79/30 days, ₹199/90 days) unlocks the long study-plan
+horizon, portions for every exam, background Classroom sync and the printable
+schedule. No subscription, no auto-renew. Everything else is free permanently, and
+expiry never hides anything a student created. See **[BILLING.md](BILLING.md)** —
+it runs in Razorpay test mode with no business registration.
 
 ## Deploying
 
@@ -189,6 +206,11 @@ All routes except `/api/auth/*` and `/api/health` require `Authorization: Bearer
 | GET | /api/classroom/status | Connection state and import counts |
 | POST | /api/classroom/sync | Import from Google Classroom now |
 | POST | /api/classroom/restore | Restore archived imported data |
+| GET | /api/billing/plans | Catalogue, and whether payments are configured |
+| GET | /api/billing/me | Current access and payment history |
+| POST | /api/billing/order | Start a checkout |
+| POST | /api/billing/verify | Confirm a payment from the browser |
+| POST | /api/billing/webhook | Provider callback (raw body, signed) |
 | PATCH | /api/courses/:id | Rename a course |
 | PATCH | /api/classroom/settings | Turn automatic importing on or off |
 | GET | /api/dashboard | Per-course progress, notes, decks, deadlines |

@@ -68,12 +68,15 @@ const declared = new Set([
 
 // Browser and language globals the page legitimately relies on.
 const GLOBALS = new Set([
-  'window', 'document', 'location', 'history', 'navigator', 'localStorage', 'fetch', 'io',
+  'window', 'document', 'location', 'history', 'navigator', 'localStorage', 'fetch',
+  'io',        // socket.io client, loaded from /socket.io/socket.io.js
+  'Razorpay',  // checkout.js, loaded from checkout.razorpay.com
   'setTimeout', 'setInterval', 'clearTimeout', 'clearInterval', 'alert', 'confirm', 'prompt',
   'JSON', 'Object', 'Array', 'Number', 'String', 'Boolean', 'Math', 'Date', 'Set', 'Map',
   'Promise', 'Error', 'RegExp', 'URLSearchParams', 'FileReader', 'Image', 'AudioContext',
   'encodeURIComponent', 'decodeURIComponent', 'isNaN', 'parseInt', 'parseFloat', 'console',
   'requestAnimationFrame', 'structuredClone', 'Intl', 'resolve', 'reject', 'require',
+  'getComputedStyle', 'Razorpay', 'atob', 'btoa', 'Blob', 'URL',
 ]);
 // CSS functions that appear inside style values; they are not JavaScript calls.
 const CSS_FUNCTIONS = new Set(['var', 'calc', 'color-mix', 'mix', 'clamp', 'minmax', 'url',
