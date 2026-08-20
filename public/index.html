@@ -138,6 +138,18 @@
   .btn.sm { padding: 5px 10px; font-size: 12.5px; }
   .btn.icon { padding: 5px 8px; color: var(--ink-3); }
   .btn.danger { color: var(--neg); border-color: var(--border-2); background: var(--surface); }
+  #toast { position: fixed; left: 50%; bottom: 28px; transform: translate(-50%, 16px);
+           background: var(--ink); color: var(--surface); padding: 11px 18px; border-radius: 10px;
+           font-size: 14px; font-weight: 500; box-shadow: 0 8px 24px rgba(0,0,0,.18);
+           opacity: 0; pointer-events: none; transition: opacity .18s, transform .18s; z-index: 60; }
+  #toast.show { opacity: 1; transform: translate(-50%, 0); }
+  .dropzone { border: 1.5px dashed var(--border-2); border-radius: var(--r-md); padding: 22px 16px;
+              text-align: center; cursor: pointer; background: var(--surface-2);
+              transition: border-color .15s, background .15s; }
+  .dropzone:hover, .dropzone.over { border-color: var(--accent); background: var(--surface); }
+  .dropzone.filled { border-style: solid; border-color: var(--accent); }
+  .or-divider { display: flex; align-items: center; gap: 12px; margin: 14px 0; color: var(--ink-3); font-size: 12.5px; }
+  .or-divider::before, .or-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
   .btn[disabled] { opacity: .55; cursor: not-allowed; }
 
   .pill { display: inline-flex; align-items: center; gap: 5px; border-radius: 5px; padding: 2px 8px; font-size: 11.5px; font-weight: 500; border: 1px solid transparent; }
@@ -635,6 +647,14 @@ async function api(path, opts = {}) {
   return data;
 }
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+/**
+ * Escapes text that has to survive being a JavaScript string literal inside an
+ * inline event attribute. esc on its own is not enough there: the browser
+ * decodes entities before the JavaScript is parsed, so an escaped apostrophe
+ * turns back into a real one and ends the literal early. Escaping for
+ * JavaScript first means the decoded result is still valid script.
+ */
+const jsStr = s => esc(String(s ?? '').replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
 const $ = id => document.getElementById(id);
 const val = id => ($(id)?.value || '').trim();
 const PALETTE = ['#3538cd', '#067647', '#b54708', '#175cd3', '#6941c6', '#c11574'];
@@ -643,6 +663,21 @@ const initials = n => (n || '?').split(' ').map(w => w[0]).slice(0, 2).join('').
 const fmtMin = m => m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`;
 const fmtDate = d => new Date(d).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 const fmtDateTime = d => new Date(d).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+
+/** Brief confirmation for actions whose result is a page that no longer shows
+ *  the thing you just acted on — deleting a course, importing a timetable. */
+function toast(message) {
+  let el = $('toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'toast';
+    document.body.appendChild(el);
+  }
+  el.textContent = message;
+  el.classList.add('show');
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => el.classList.remove('show'), 3200);
+}
 
 function avatarHtml(user, size, cls = '') {
   const s = `width:${size}px;height:${size}px;font-size:${Math.round(size * .38)}px`;
@@ -677,11 +712,55 @@ const closeModal = () => ($('modalHost').innerHTML = '');
 function readFile(file) {
   return new Promise((resolve, reject) => {
     const fr = new FileReader();
-    fr.onload = () => resolve({ name: file.name, dataUrl: fr.result });
+    fr.onload = () => resolve({ name: file.name, type: file.type, size: file.size, dataUrl: fr.result });
     fr.onerror = reject;
     fr.readAsDataURL(file);
   });
 }
+
+// ---- shared document drop zone ----------------------------------------------
+// Used by both the timetable and the syllabus importers. The picked file is held
+// here until the student presses Read it, so nothing is uploaded by accident.
+let pickedDoc = null;
+
+function dropZone(id, hint) {
+  return `<div id="${id}" class="dropzone"
+      ondragover="event.preventDefault();this.classList.add('over')"
+      ondragleave="this.classList.remove('over')"
+      ondrop="dropDoc(event, '${id}')"
+      onclick="$('${id}File').click()">
+      <input type="file" id="${id}File" class="hidden" accept=".pdf,.docx,.doc,.txt,.csv,.tsv,.md"
+             onchange="pickDoc(this.files[0], '${id}')" />
+      <div id="${id}Label">
+        <strong>Drop your ${hint} here</strong>
+        <div class="sub" style="font-size:12.5px">or click to choose — PDF, Word or a text file, up to 8 MB</div>
+      </div>
+    </div>`;
+}
+
+function dropDoc(event, id) {
+  event.preventDefault();
+  $(id).classList.remove('over');
+  pickDoc(event.dataTransfer.files[0], id);
+}
+
+async function pickDoc(file, id) {
+  if (!file) return;
+  if (file.size > 8 * 1024 * 1024) {
+    $(`${id}Label`).innerHTML = `<strong style="color:var(--neg)">That file is ${(file.size / 1048576).toFixed(1)} MB</strong>
+      <div class="sub" style="font-size:12.5px">The limit is 8 MB.</div>`;
+    return;
+  }
+  pickedDoc = await readFile(file);
+  $(id).classList.add('filled');
+  $(`${id}Label`).innerHTML = `<strong>${esc(file.name)}</strong>
+    <div class="sub" style="font-size:12.5px">${(file.size / 1024).toFixed(0)} KB · click to choose a different file</div>`;
+}
+
+/** Sends whichever the student actually used — the file wins if both are filled. */
+const docBody = textFieldId => JSON.stringify(
+  pickedDoc ? { file: pickedDoc } : { text: val(textFieldId) }
+);
 
 // ===================== auth =====================
 let mode = 'signin';          // 'signin' | 'register'
@@ -1123,7 +1202,10 @@ function last7Bars(last7) {
   }).join('');
 }
 function courseCard(c) {
-  return `<div class="course" onclick="go('course',{id:${c.id},code:'${esc(c.code)}',title:'${esc(c.title)}'})">
+  // Only the id travels through the click. Passing the title here used to break
+  // any course with an apostrophe in its name — the browser decodes &#39; back
+  // to ' before the JavaScript is parsed, so the string literal ended early.
+  return `<div class="course" onclick="go('course',{id:${c.id}})">
     <div class="cover" style="background:${coverFor(c.id)}"></div>
     <div class="body">
       <div class="spread" style="margin-bottom:9px">
@@ -1181,19 +1263,27 @@ async function enroll(id) { await api(`/courses/${id}/enroll`, { method: 'POST' 
 // ===================== course detail =====================
 async function renderCourse() {
   const id = ctx.id;
-  const [syllabus, notes, decks, asg] = await Promise.all([
+  // The course itself comes from the server, not from whatever the click that
+  // opened this page happened to carry. That is what makes Rename work no matter
+  // how you got here.
+  const [course, syllabus, notes, decks, asg] = await Promise.all([
+    api(`/courses/${id}`),
     api(`/syllabus?courseId=${id}`), api(`/notes?courseId=${id}`), api(`/decks?courseId=${id}`), api(`/assignments?courseId=${id}`),
   ]);
+  ctx = { ...ctx, ...course };
   const pct = syllabus.summary.coveragePct;
 
   $('main').innerHTML = `
     <button class="btn ghost sm" onclick="go('courses')">← Courses</button>
     <div class="card" style="margin-top:12px;border-top:3px solid ${coverFor(id)}">
       <div class="spread">
-        <div><span class="code-tag">${esc(ctx.code)}</span>
+        <div><span class="code-tag">${esc(course.code)}</span>
           <div class="row" style="gap:8px;margin-top:9px">
-            <h1>${esc(ctx.title)}</h1>
-            <button class="btn ghost sm" onclick="renameCourseModal(${id})" title="Rename this course">Rename</button>
+            <h1>${esc(course.title)}</h1>
+            ${course.canRename
+              ? `<button class="btn ghost sm" onclick="renameCourseModal(${id})" title="Rename this course">Rename</button>`
+              : `<span class="sub" style="font-size:12.5px" title="Only the person who added a course can rename it">added by ${esc(course.createdBy)}</span>`}
+            <button class="btn ghost sm" onclick="deleteCourseModal(${id})" title="Remove or delete this course">Delete</button>
           </div></div>
         <div style="text-align:right"><div style="font-size:26px;font-weight:600;letter-spacing:-.025em">${pct}%</div>
           <div class="sub">complete</div></div>
@@ -1262,8 +1352,63 @@ async function renameCourse(courseId) {
       title: val('rcTitle'), code: val('rcCode') || undefined,
     })});
     closeModal();
-    go('course', { ...ctx, title: val('rcTitle'), code: (val('rcCode') || ctx.code).toUpperCase() });
+    // Re-render from the id alone; renderCourse re-reads the course, so the new
+    // name is whatever the database actually stored rather than what we hoped.
+    go('course', { id: courseId });
   } catch (e) { $('rcErr').textContent = e.message; }
+}
+
+// ---- deleting a course ----
+function deleteCourseModal(courseId) {
+  const canWipe = !!ctx.canDeleteForEveryone;
+  const others = Math.max(0, (ctx.studentCount || 1) - 1);
+  modal(`<h2>Delete course</h2>
+    <p class="sub" style="margin:6px 0 16px">${esc(ctx.code || '')} — ${esc(ctx.title || '')}</p>
+
+    <label class="opt-row" style="display:flex;gap:10px;align-items:flex-start;padding:12px;border:1px solid var(--border);border-radius:10px;cursor:pointer">
+      <input type="radio" name="delScope" value="mine" checked onchange="delScopeChanged()" style="margin-top:3px" />
+      <span><strong>Remove from my courses</strong>
+        <div class="sub" style="font-size:12.5px">Unenrols you and clears your syllabus, deadlines, exams, grades, notes and decks for this course. Everyone else keeps theirs. Your study hours are kept.</div></span>
+    </label>
+
+    ${canWipe ? `
+    <label class="opt-row" style="display:flex;gap:10px;align-items:flex-start;padding:12px;border:1px solid var(--border);border-radius:10px;cursor:pointer;margin-top:10px">
+      <input type="radio" name="delScope" value="everyone" onchange="delScopeChanged()" style="margin-top:3px" />
+      <span><strong>Delete for everyone</strong>
+        <div class="sub" style="font-size:12.5px">You added this course, so you can remove it entirely${others ? ` — <strong>${others} other student${others === 1 ? '' : 's'}</strong> would lose their work on it` : ''}. This cannot be undone.</div></span>
+    </label>
+    <div id="delConfirm" class="field hidden" style="margin-top:12px">
+      <label>Type <strong>${esc(ctx.code || '')}</strong> to confirm</label>
+      <input id="dcCode" placeholder="${esc(ctx.code || '')}" style="text-transform:uppercase" />
+    </div>` : ''}
+
+    <div class="err" id="dcErr"></div>
+    <div class="row" style="justify-content:flex-end;margin-top:12px">
+      <button class="btn ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn danger" onclick="deleteCourse(${courseId})">Delete</button></div>`);
+}
+
+function delScopeChanged() {
+  const box = $('delConfirm');
+  if (box) box.classList.toggle('hidden', delScope() !== 'everyone');
+}
+
+const delScope = () => document.querySelector('input[name="delScope"]:checked')?.value || 'mine';
+
+async function deleteCourse(courseId) {
+  const scope = delScope();
+  try {
+    let url = `/courses/${courseId}?scope=${scope}`;
+    if (scope === 'everyone') {
+      const typed = (val('dcCode') || '').trim();
+      if (!typed) { $('dcErr').textContent = `Type ${ctx.code} to confirm.`; return; }
+      url += `&confirm=${encodeURIComponent(typed)}`;
+    }
+    const r = await api(url, { method: 'DELETE' });
+    closeModal();
+    toast(r.message);
+    go('courses');
+  } catch (e) { $('dcErr').textContent = e.message; }
 }
 
 function courseTab(btn, id) {
@@ -1344,10 +1489,13 @@ async function addTopic() {
 }
 
 function pasteSyllabusModal() {
-  modal(`<h2>Paste your syllabus</h2>
-    <p class="sub" style="margin:6px 0 14px">Copy it straight from the course handbook or PDF.
+  pickedDoc = null;
+  modal(`<h2>Add your syllabus</h2>
+    <p class="sub" style="margin:6px 0 14px">Upload the syllabus your college gave you, or paste it in.
       Unit headings, bullets and numbering are all understood.</p>
-    <textarea id="sylText" style="min-height:190px;font-family:ui-monospace,monospace;font-size:12.5px"
+    ${dropZone('sylDrop', 'syllabus')}
+    <div class="or-divider">or paste it</div>
+    <textarea id="sylText" style="min-height:150px;font-family:ui-monospace,monospace;font-size:12.5px"
       placeholder="Unit 1 - Introduction&#10;- Database concepts&#10;- ER modelling&#10;&#10;Unit 2 - Normalization&#10;- 1NF, 2NF, 3NF&#10;- BCNF"></textarea>
     <div class="err" id="sylErr"></div>
     <div class="row" style="justify-content:flex-end;margin-top:10px">
@@ -1358,10 +1506,12 @@ function pasteSyllabusModal() {
 let syllabusRows = [];
 async function previewSyllabus() {
   try {
-    const r = await api('/syllabus/preview', { method: 'POST', body: JSON.stringify({ text: val('sylText') }) });
+    if (!pickedDoc && !val('sylText')) { $('sylErr').textContent = 'Upload a file or paste the syllabus first.'; return; }
+    const r = await api('/syllabus/preview', { method: 'POST', body: docBody('sylText') });
     if (!r.topics.length) { $('sylErr').textContent = 'No topics found in that text.'; return; }
     syllabusRows = r.topics;
     modal(`<h2>Found ${r.count} topic${r.count === 1 ? '' : 's'}</h2>
+      ${sourceLine(r.source)}
       <p class="sub" style="margin:6px 0 12px">${r.units.length
         ? `Grouped into ${r.units.length} unit${r.units.length === 1 ? '' : 's'}.`
         : 'No unit headings found — they will be added ungrouped.'} Untick anything you don't need.</p>
@@ -1384,10 +1534,21 @@ async function importSyllabus() {
     .map(c => syllabusRows[Number(c.dataset.i)]);
   if (!picked.length) { $('sylErr2').textContent = 'Nothing selected.'; return; }
   try {
-    await api('/syllabus/import', { method: 'POST', body: JSON.stringify({ courseId: ctx.id, topics: picked }) });
+    const r = await api('/syllabus/import', { method: 'POST', body: JSON.stringify({ courseId: ctx.id, topics: picked }) });
     closeModal();
-    go('course', ctx);
+    pickedDoc = null;
+    toast(r.message + (r.duplicates ? ` · ${r.duplicates} were already there` : ''));
+    go('course', { id: ctx.id });
   } catch (e) { $('sylErr2').textContent = e.message; }
+}
+
+/** Tells the student what was actually read, so a wrong file is obvious. */
+function sourceLine(source) {
+  if (!source || source.kind === 'paste') return '';
+  const bits = [esc(source.filename || 'file')];
+  if (source.pages) bits.push(`${source.pages} page${source.pages === 1 ? '' : 's'}`);
+  return `<p class="sub" style="font-size:12.5px;margin:2px 0 0">Read from ${bits.join(' · ')}</p>
+    ${source.warning ? `<p class="sub" style="font-size:12.5px;color:var(--warn)">${esc(source.warning)}</p>` : ''}`;
 }
 // ---- notes ----
 const LINK_ICON = {
@@ -1942,7 +2103,7 @@ async function renderSearch() {
       <p class="sub">${q.length < 2 ? 'Type at least 2 characters in the sidebar search box.' : `${total} result${total === 1 ? '' : 's'} for “${esc(q)}”`}</p></div></div>
     ${r.courses.length ? `<div class="card"><h2 style="margin-bottom:12px">Courses</h2>
       <div class="grid g-3">${r.courses.map(c => `
-        <div class="course" onclick="go('course',{id:${c.id},code:'${esc(c.code)}',title:'${esc(c.title)}'})">
+        <div class="course" onclick="go('course',{id:${c.id}})">
           <div class="cover" style="background:${coverFor(c.id)}"></div>
           <div class="body"><span class="code-tag">${esc(c.code)}</span>
             <h3 style="margin-top:8px">${esc(c.title)}</h3>
@@ -1975,7 +2136,7 @@ function bubbleHtml(m) {
     <div class="at">${timeOf(m.createdAt)}</div>
   </div>`;
 }
-function openSharedNote(courseId) { go('course', { id: Number(courseId), code: '', title: 'Course' }); }
+function openSharedNote(courseId) { go('course', { id: Number(courseId) }); }
 
 function paintPresence() {
   document.querySelectorAll('[data-presence]').forEach(el => {
@@ -2229,8 +2390,8 @@ async function renderReferrals() {
         <div class="field" style="margin-top:14px"><label>Invite link</label>
           <input id="refLink" readonly value="${esc(r.link)}" onclick="this.select()" /></div>
         <div class="row">
-          <button class="btn" onclick="copyText('${esc(r.link)}', this)">Copy link</button>
-          <button class="btn ghost" onclick="copyText('${esc(r.code || '')}', this)">Copy code</button>
+          <button class="btn" onclick="copyText('${jsStr(r.link)}', this)">Copy link</button>
+          <button class="btn ghost" onclick="copyText('${jsStr(r.code)}', this)">Copy code</button>
         </div>
         ${r.invitedBy ? `<p class="sub" style="margin-top:14px">You joined via ${esc(r.invitedBy.name)} (@${esc(r.invitedBy.username)}).</p>` : ''}
       </div>
@@ -2593,10 +2754,13 @@ async function savePortion(examId) {
 }
 
 function pasteTimetableModal() {
-  modal(`<h2>Paste your exam timetable</h2>
-    <p class="sub" style="margin:6px 0 14px">Copy it straight out of the notice, email or PDF — one exam per line.
-      Dates in almost any format are understood.</p>
-    <textarea id="ttText" style="min-height:150px;font-family:ui-monospace,monospace;font-size:12.5px"
+  pickedDoc = null;
+  modal(`<h2>Add your exam timetable</h2>
+    <p class="sub" style="margin:6px 0 14px">Upload the timetable your college published, or paste it in.
+      Dates in almost any format are understood, and exams are matched to your courses automatically.</p>
+    ${dropZone('ttDrop', 'timetable')}
+    <div class="or-divider">or paste it</div>
+    <textarea id="ttText" style="min-height:120px;font-family:ui-monospace,monospace;font-size:12.5px"
       placeholder="12/09/2026  CS301 Database Systems  10:00 am&#10;14 Sep 2026  CS302 Operating Systems  2:00 pm"></textarea>
     <div class="err" id="ttErr"></div>
     <div class="row" style="justify-content:flex-end;margin-top:10px">
@@ -2607,11 +2771,14 @@ function pasteTimetableModal() {
 let timetableRows = [];
 async function previewTimetable() {
   try {
-    const r = await api('/exams/preview', { method: 'POST', body: JSON.stringify({ text: val('ttText') }) });
+    if (!pickedDoc && !val('ttText')) { $('ttErr').textContent = 'Upload a file or paste the timetable first.'; return; }
+    const r = await api('/exams/preview', { method: 'POST', body: docBody('ttText') });
     timetableRows = r.rows;
     if (!r.rows.length) { $('ttErr').textContent = 'No dates found in that text.'; return; }
     modal(`<h2>Found ${r.rows.length} exam${r.rows.length === 1 ? '' : 's'}</h2>
-      <p class="sub" style="margin:6px 0 14px">Check these before importing. Untick anything wrong.</p>
+      ${sourceLine(r.source)}
+      <p class="sub" style="margin:6px 0 14px">Check these before importing. Untick anything wrong.${
+        r.matchedCourses ? ` ${r.matchedCourses} matched a course you are taking.` : ''}</p>
       <table><thead><tr><th style="width:28px"></th><th>Exam</th><th>Date</th><th>Time</th><th>Course</th></tr></thead><tbody>
         ${r.rows.map((row, i) => `<tr>
           <td><input type="checkbox" class="ttPick" data-i="${i}" checked style="width:auto" /></td>
@@ -2635,9 +2802,17 @@ async function importTimetable() {
   const picked = [...document.querySelectorAll('.ttPick')].filter(c => c.checked).map(c => timetableRows[Number(c.dataset.i)]);
   if (!picked.length) { $('ttErr2').textContent = 'Nothing selected.'; return; }
   try {
-    await api('/exams/import', { method: 'POST', body: JSON.stringify({ rows: picked }) });
-    closeModal();
-    go('exams');
+    const r = await api('/exams/import', { method: 'POST', body: JSON.stringify({ rows: picked }) });
+    pickedDoc = null;
+    // The plan is recomputed from current deadlines on every request, so these
+    // exams are already in the schedule. Offering to look is more useful than
+    // silently dropping the student back on a list they just added to.
+    modal(`<h2>${esc(r.message)}</h2>
+      <p class="sub" style="margin:8px 0 16px">Your study plan has been rebuilt around these dates. Revision time is
+        shared out by how close each exam is, how heavily it counts and how much of its syllabus you have already covered.</p>
+      <div class="row" style="justify-content:flex-end">
+        <button class="btn ghost" onclick="closeModal();go('exams')">Back to exams</button>
+        <button class="btn" onclick="closeModal();go('plan')">See my study plan</button></div>`);
   } catch (e) { $('ttErr2').textContent = e.message; }
 }
 
@@ -3061,7 +3236,7 @@ async function renderProfile() {
               <code style="font-family:ui-monospace,monospace;font-size:15px;font-weight:600;letter-spacing:.1em">${esc(i.code)}</code>
               <div style="flex:1"></div>
               <span class="sub" style="font-size:12px">expires ${fmtDate(i.expires_at)}</span>
-              <button class="btn ghost sm" onclick="copyText('${esc(i.code)}', this)">Copy</button>
+              <button class="btn ghost sm" onclick="copyText('${jsStr(i.code)}', this)">Copy</button>
             </div>`).join('')}</div>` : ''}
 
           ${guardians.guardians.length ? guardians.guardians.map(g => `<div class="todo">

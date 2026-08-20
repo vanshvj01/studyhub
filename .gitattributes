@@ -1,0 +1,19 @@
+# Store every text file with LF in the repository, whatever the editor on the
+# machine that wrote it did. Without this, a file opened in a Windows editor
+# comes back as a whole-file diff with no real change in it, which buries the
+# actual work and makes reviewing a commit impossible.
+* text=auto eol=lf
+
+# Binaries must never be touched.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.pdf binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+
+# Windows helper scripts genuinely need CRLF to run.
+*.bat text eol=crlf
+*.cmd text eol=crlf

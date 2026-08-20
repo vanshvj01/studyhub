@@ -5,6 +5,7 @@ const { pool } = require('../config/db');
 const { requireAuth, requireRole } = require('../middleware/auth');
 const { validate } = require('../lib/validate');
 const { parseSyllabus } = require('../lib/syllabus');
+const { uploadText } = require('../middleware/uploadText');
 
 const router = express.Router();
 router.use(requireAuth, requireRole('student'));
@@ -78,10 +79,12 @@ router.post('/', validate({
   }
 });
 
-// POST /api/syllabus/preview { text } — parse without saving
-router.post('/preview', validate({ text: { type: 'string', required: true, maxLen: 40000 } }), (req, res) => {
+// POST /api/syllabus/preview { text } or { file: { dataUrl, name, type } }
+// Parses a syllabus — pasted, or uploaded as the PDF or Word file the college
+// handed out — without saving. The student edits the result before importing.
+router.post('/preview', uploadText(), validate({ text: { type: 'string', required: true, maxLen: 40000 } }), (req, res) => {
   const { topics, units, skipped } = parseSyllabus(req.body.text);
-  res.json({ topics, units, skipped, count: topics.length });
+  res.json({ topics, units, skipped, count: topics.length, source: req.upload || { kind: 'paste' } });
 });
 
 // POST /api/syllabus/import { courseId, topics[] }

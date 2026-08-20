@@ -5,6 +5,7 @@ const { requireAuth, requireRole } = require('../middleware/auth');
 const { loadAccess } = require('../middleware/entitlements');
 const { validate } = require('../lib/validate');
 const { parseTimetable } = require('../lib/timetable');
+const { uploadText } = require('../middleware/uploadText');
 
 const router = express.Router();
 router.use(requireAuth, requireRole('student'), loadAccess);
@@ -130,19 +131,36 @@ router.post('/', validate({
   }
 });
 
-// POST /api/exams/preview { text } — parse a pasted timetable without saving
-router.post('/preview', validate({ text: { type: 'string', required: true, maxLen: 20000 } }), async (req, res, next) => {
+// POST /api/exams/preview { text } or { file: { dataUrl, name, type } }
+// Parses a timetable — pasted or uploaded as a PDF, Word file or text file —
+// without saving anything. The student confirms the rows before they become
+// exams, because a misread date is worse than no date at all.
+router.post('/preview', uploadText(), validate({ text: { type: 'string', required: true, maxLen: 20000 } }), async (req, res, next) => {
   try {
     const { rows, skipped } = parseTimetable(req.body.text);
     // Try to match each parsed course code to a course the student is enrolled in.
     const [courses] = await pool.execute(
-      `SELECT c.id, c.code FROM enrollments e JOIN courses c ON c.id = e.course_id WHERE e.user_id = ?`,
+      `SELECT c.id, c.code, c.title FROM enrollments e JOIN courses c ON c.id = e.course_id
+        WHERE e.user_id = ? AND c.archived_at IS NULL`,
       [req.user.id]
     );
     const byCode = Object.fromEntries(courses.map(c => [c.code.toUpperCase(), c.id]));
+    // Matching on course code is the reliable half; when the timetable has no
+    // code, fall back to the course title appearing in the line.
+    const matched = rows.map(r => {
+      let courseId = r.courseCode ? byCode[r.courseCode.toUpperCase()] || null : null;
+      if (!courseId) {
+        const haystack = `${r.title} ${r.raw}`.toLowerCase();
+        courseId = courses.find(c => c.title && c.title.length > 4 && haystack.includes(c.title.toLowerCase()))?.id || null;
+      }
+      return { ...r, courseId };
+    });
+
     res.json({
-      rows: rows.map(r => ({ ...r, courseId: r.courseCode ? byCode[r.courseCode.toUpperCase()] || null : null })),
+      rows: matched,
       skipped,
+      source: req.upload || { kind: 'paste' },
+      matchedCourses: matched.filter(r => r.courseId).length,
     });
   } catch (err) { next(err); }
 });

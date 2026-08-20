@@ -10,10 +10,20 @@ const vm = require('node:vm');
 const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
 const script = html.match(/<script>([\s\S]*)<\/script>/)[1];
 
+/** A `/` starts a regex only where a value is expected, never after one. */
+function isRegexStart(emittedSoFar) {
+  const before = emittedSoFar.replace(/\s+$/, '');
+  if (before === '') return true;
+  const last = before[before.length - 1];
+  if ('(,=:[!&|?{};+-*%~^<>'.includes(last)) return true;
+  return /\b(return|typeof|case|in|of|new|delete|void|do|else|yield|await)$/.test(before);
+}
+
 /**
- * Strips comments and the literal text of strings, keeping `${...}` expressions
- * from template literals — which is exactly where most of this app's calls live.
- * Without this the scan trips over CSS functions and English prose.
+ * Strips comments, regex literals and the literal text of strings, keeping
+ * `${...}` expressions from template literals — which is exactly where most of
+ * this app's calls live. Without this the scan trips over CSS functions and
+ * English prose.
  */
 function codeOnly(source) {
   let out = '';
@@ -26,6 +36,25 @@ function codeOnly(source) {
 
     if (c === '/' && next === '/') { while (i < source.length && source[i] !== '\n') i++; continue; }
     if (c === '/' && next === '*') { i += 2; while (i < source.length && !(source[i] === '*' && source[i + 1] === '/')) i++; i += 2; continue; }
+
+    // A regular expression literal. Without this the quotes inside a character
+    // class — /[&<>"']/ — read as the start of a string and every quote after
+    // it is counted on the wrong side, so prose starts looking like code.
+    if (c === '/' && isRegexStart(out)) {
+      i++;
+      let inClass = false;
+      while (i < source.length) {
+        if (source[i] === '\\') { i += 2; continue; }
+        if (source[i] === '[') inClass = true;
+        else if (source[i] === ']') inClass = false;
+        else if (source[i] === '/' && !inClass) { i++; break; }
+        else if (source[i] === '\n') break;              // not a regex after all
+        i++;
+      }
+      while (i < source.length && /[gimsuy]/.test(source[i])) i++;
+      out += ' /re/ ';
+      continue;
+    }
 
     if (c === "'" || c === '"') {
       const quote = c; i++;
@@ -62,7 +91,7 @@ function codeOnly(source) {
 const code = codeOnly(script);
 
 const declared = new Set([
-  ...[...script.matchAll(/(?:^|\s)(?:async\s+)?function\s+(\w+)/g)].map(m => m[1]),
+  ...[...script.matchAll(/(?:^|[\s(])(?:async\s+)?function\s+(\w+)/g)].map(m => m[1]),
   ...[...script.matchAll(/(?:^|\s)(?:const|let|var)\s+(\w+)/g)].map(m => m[1]),
 ]);
 
@@ -108,6 +137,41 @@ test('no function is declared twice — the later one silently wins', () => {
   const names = [...script.matchAll(/(?:^|\s)(?:async\s+)?function\s+(\w+)/g)].map(m => m[1]);
   const duplicates = [...new Set(names.filter((n, i) => names.indexOf(n) !== i))];
   assert.deepEqual(duplicates, [], `duplicate definitions: ${duplicates.join(', ')}`);
+});
+
+test('no string built for an onclick carries user text', () => {
+  // `onclick="go('course',{title:'${esc(c.title)}'})"` looks safe — esc() is
+  // right there. It is not: the browser decodes &#39; back to an apostrophe
+  // before the JavaScript is parsed, so any course named "Newton's Laws" ends
+  // the string literal early and the card stops working entirely. Ids only.
+  // jsStr() is the version that survives the decode; esc() is not.
+  const offenders = [...html.matchAll(/on\w+="[^"]*'\$\{esc\([^)]*\)\}'/g)].map(m => m[0].slice(0, 90));
+  assert.deepEqual(offenders, [],
+    `esc() inside a JavaScript string in an inline handler — use jsStr():\n  ${offenders.join('\n  ')}`);
+});
+
+test('the course page reads the course from the server', () => {
+  // Rename was broken because the page trusted whatever the click that opened
+  // it carried, and several routes in carried nothing.
+  const body = script.slice(script.indexOf('async function renderCourse'), script.indexOf('function renameCourseModal'));
+  assert.match(body, /api\(`\/courses\/\$\{id\}`\)/, 'renderCourse should fetch the course itself');
+});
+
+test('destructive course actions ask the server what is allowed', () => {
+  assert.match(script, /course\.canRename/, 'the Rename button should be driven by the server');
+  assert.match(script, /scope=\$\{scope\}/, 'delete should send an explicit scope');
+  assert.match(script, /confirm=\$\{encodeURIComponent/, 'deleting for everyone should send the typed confirmation');
+});
+
+test('both importers offer an upload as well as a paste', () => {
+  for (const fn of ['pasteTimetableModal', 'pasteSyllabusModal']) {
+    const start = script.indexOf(`function ${fn}`);
+    assert.ok(start > -1, `${fn} is missing`);
+    const body = script.slice(start, start + 1200);
+    assert.match(body, /dropZone\(/, `${fn} should include the drop zone`);
+  }
+  assert.match(script, /docBody\('ttText'\)/, 'the timetable preview should send file-or-text');
+  assert.match(script, /docBody\('sylText'\)/, 'the syllabus preview should send file-or-text');
 });
 
 test('no API path points at a route the server does not mount', () => {
